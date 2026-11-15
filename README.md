@@ -115,7 +115,7 @@ surface-install /mnt
 - trägt das linux-surface-Repository in `/etc/pacman.conf` ein (Kernel-Updates
   kommen danach ganz normal über `pacman -Syu`),
 - richtet ein Initramfs mit allen nötigen Plattformtreibern ein
-  (Hook `surface-qcom`, `/etc/mkinitcpio.conf.d/surface.conf`),
+  (Hook `surface-qcom`, eingetragen in `/etc/mkinitcpio.conf`),
 - übernimmt die gerätespezifische Firmware aus Windows (`surface-fw-extract`),
 - installiert GRUB und erzeugt über `/etc/grub.d/09_surface` einen Eintrag mit
   dem Devicetree des Geräts (`/etc/default/surface-boot`). `grub-mkconfig`

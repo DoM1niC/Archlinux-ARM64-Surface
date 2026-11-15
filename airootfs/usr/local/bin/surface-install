@@ -105,15 +105,6 @@ ask "Installation starten?" || exit 1
 msg "Bereite Initramfs-Konfiguration vor"
 install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
     "$target/usr/lib/initcpio/install/surface-qcom"
-install -d "$target/etc/mkinitcpio.conf.d"
-cat > "$target/etc/mkinitcpio.conf.d/surface.conf" <<'EOF'
-# Von surface-install angelegt.
-# Bewusst ohne "autodetect": Auf Snapdragon-Surface-Geräten hängen Display,
-# Tastatur und Massenspeicher an vielen Plattformtreibern, die autodetect
-# nicht zuverlässig findet. Der Hook "surface-qcom" nimmt sie alle auf.
-# Für verschlüsseltes Root hier "encrypt" (vor filesystems) ergänzen.
-HOOKS=(base udev modconf keyboard keymap consolefont block filesystems fsck surface-qcom)
-EOF
 
 pkgs=(base linux-surface linux-firmware mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano iwd wireless-regdb terminus-font
@@ -129,6 +120,22 @@ pkgs+=("${extra_pkgs[@]}")
 
 msg "Installiere Pakete (pacstrap)"
 pacstrap "$target" "${pkgs[@]}"
+
+# Das Preset des Kernelpakets ruft mkinitcpio mit ausdrücklicher Konfigurations-
+# datei auf; Drop-ins unter mkinitcpio.conf.d werden dabei nicht gelesen. Die
+# Hooks müssen deshalb in /etc/mkinitcpio.conf selbst stehen.
+msg "Richte Initramfs ein"
+cat >> "$target/etc/mkinitcpio.conf" <<'EOF'
+
+# --- von surface-install ergänzt --------------------------------------------
+# Bewusst ohne "autodetect": Auf Snapdragon-Surface-Geräten hängen Display,
+# Tastatur und Massenspeicher an vielen Plattformtreibern, die autodetect
+# nicht zuverlässig findet. Der Hook "surface-qcom" nimmt sie alle auf.
+# Für verschlüsseltes Root "encrypt" vor "filesystems" ergänzen.
+HOOKS=(base udev modconf keyboard keymap consolefont block filesystems fsck surface-qcom)
+EOF
+cp /etc/vconsole.conf "$target/etc/vconsole.conf"
+arch-chroot "$target" mkinitcpio -P
 
 if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
     cat >> "$target/etc/pacman.conf" <<EOF
@@ -233,5 +240,5 @@ cat <<EOF
     Hinweise:
       * Secure Boot muss in den Surface-UEFI-Einstellungen ausgeschaltet bleiben.
       * Gerät/Devicetree stehen in /etc/default/surface-boot.
-      * Die Initramfs-Hooks stehen in /etc/mkinitcpio.conf.d/surface.conf.
+      * Die Initramfs-Hooks stehen am Ende von /etc/mkinitcpio.conf.
 EOF
