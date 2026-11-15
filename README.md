@@ -216,3 +216,39 @@ from `mkinitcpio-archiso`.
 - UEFI variables are not writable from Linux on every device. In that case
   `surface-install` can, on request, place GRUB as the default bootloader
   (`EFI/BOOT/BOOTAA64.EFI`, backing up the existing file).
+
+## References
+
+Kernel
+
+- [linux-surface/kernel](https://github.com/linux-surface/kernel) – kernel
+  sources with the Surface patches and devicetrees
+- [linux-surface/aarch64-packages](https://github.com/linux-surface/aarch64-packages)
+  – Arch packaging of `linux-surface` for aarch64 (also the PKGBUILDs used
+  here for `qrtr`, `tqftpserv`, `rmtfs-dummy`)
+- [linux-surface/repo](https://github.com/linux-surface/repo) – package
+  repository (`https://pkg.surfacelinux.com/arch-aarch64/`)
+
+Firmware
+
+- [linux-surface/aarch64-firmware](https://github.com/linux-surface/aarch64-firmware)
+  – firmware for the Surface Pro X
+- [linux-firmware](https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git)
+  – upstream firmware (Qualcomm, Atheros, …)
+- [linux-msm](https://github.com/linux-msm) – Qualcomm userspace (`qrtr`,
+  `tqftpserv`, `rmtfs`)
+
+Other building blocks
+
+- [linux-surface](https://github.com/linux-surface) – the project as a whole,
+  wiki and issues
+- [linux-surface/aarch64-arch-mkimg](https://github.com/linux-surface/aarch64-arch-mkimg)
+  – linux-surface's own image scripts for the Pro X (the model for this
+  project)
+- [linux-surface/grub-image-aarch64](https://github.com/linux-surface/grub-image-aarch64)
+  – patched GRUB for the Pro X
+- [Arch Linux ARM](https://archlinuxarm.org) and its
+  [PKGBUILDs](https://github.com/archlinuxarm/PKGBUILDs)
+- [archiso](https://gitlab.archlinux.org/archlinux/archiso) /
+  [mkinitcpio-archiso](https://gitlab.archlinux.org/archlinux/mkinitcpio/mkinitcpio-archiso)
+- [Ventoy](https://github.com/ventoy/Ventoy)
