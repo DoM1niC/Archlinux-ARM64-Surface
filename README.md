@@ -27,9 +27,40 @@ Baut ein bootfähiges Live-/Installations-ISO (aarch64, UEFI) mit
 | `sp12`      | Surface Pro 12" (2025, X Plus)      | X1P42100  | `x1p42100-microsoft-sp12in.dtb`      |
 
 Die Liste steht in [`devices.conf`](devices.conf) und entspricht den
-Devicetrees, die der linux-surface-Kernel mitbringt. Was auf dem jeweiligen
-Gerät schon funktioniert (WLAN, Ton, Kamera, Touch, …), hängt vom Stand des
-Kernels ab – siehe das Wiki und die Issues von linux-surface.
+Devicetrees, die der linux-surface-Kernel mitbringt.
+
+### Hardware-Unterstützung
+
+Die Tabelle zeigt, welche Hardware der linux-surface-Kernel (7.3.1) im
+Devicetree des jeweiligen Geräts beschreibt. Sie ist aus den Kernel-Quellen
+abgelesen, **nicht auf Hardware getestet**: „✓“ heißt „Treiber ist
+vorgesehen“, nicht „funktioniert garantiert“. Den tatsächlichen Stand zeigen
+das Wiki und die Issues von linux-surface.
+
+| Funktion | Pro X (SQ1/SQ2) | Pro 9 5G | Dev Kit 2023 | Laptop 7 (13,8"/15") | Pro 11 (LCD/OLED) | Pro 12" |
+|---|---|---|---|---|---|---|
+| Internes Display | ✓ | ✓ | – (kein Display) | ✓ | ✓ | ✓ |
+| GPU-Beschleunigung | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
+| Interner Speicher | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
+| USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Externer Monitor über USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
+| WLAN | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850) | ✓ (WCN7850) | ✓ (WCN7850) |
+| Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Ton | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
+| Tastatur/Touchpad, Akku (Surface Aggregator) | ✓ | ✓ | – (USB-Geräte) | ✓ | ✓ | ✓ |
+| Touchscreen | – | – | – | – | – | ✓ |
+| Kameras | – | – | – | – | – | – |
+| Mobilfunk (LTE/5G) | – | – | – | – | – | – |
+
+- **✓**: im Devicetree beschrieben, Treiber im Kernel vorhanden.
+- **(FW)**: braucht zusätzlich die signierte Firmware aus Windows
+  (`surface-fw-extract`, siehe unten). Beim Pro X ist sie schon im ISO.
+- **–**: im Devicetree nicht beschrieben, also nach aktuellem Stand ohne
+  Funktion.
+
+Stift und Fingerabdruckleser/Windows Hello sind nicht einzeln geprüft. Beim
+Pro X läuft das WLAN nur mit den Zusatzdiensten `tqftpserv` und `rmtfs`; sie
+sind im ISO enthalten und werden vom Installer mit eingerichtet.
 
 ## Bauen
 
