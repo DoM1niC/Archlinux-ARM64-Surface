@@ -15,8 +15,8 @@ Builds a bootable live/installation ISO (aarch64, UEFI) with
 - an **installer** (`surface-install`) that puts the system, bootloader and
   devicetree onto the internal SSD.
 
-The boot menu, the live system's messages and the helper tools are currently
-in German.
+Boot menu, live system and helper tools are available in **German and
+English**; language and keyboard layout are picked in the boot menu.
 
 ## Supported devices
 
@@ -79,8 +79,9 @@ until the host is rebooted).
 ```
 
 Settings live in [`config.sh`](config.sh) and can be overridden from the
-environment, e.g. `LIVE_KEYMAP=us LIVE_TIMEZONE=UTC ./build.sh` (the default
-keymap is `de-latin1`). The live system's packages are listed in
+environment, e.g. `LIVE_LANG=en LIVE_KEYMAP=us LIVE_TIMEZONE=UTC ./build.sh`
+(the defaults are German and `de-latin1`; the build script's own messages are
+in German). The live system's packages are listed in
 [`packages.txt`](packages.txt).
 
 Smoke test in QEMU (no Surface hardware, generic boot entry):
@@ -123,8 +124,20 @@ sudo dd if=out/archlinux-arm64-surface-<date>-aarch64.iso of=/dev/sdX bs=4M conv
    firmware information, the matching entry is preselected; this detection is
    only a convenience – a wrong devicetree does not boot or gives no picture.
 
-The live system logs in as `root` automatically. Change the keyboard layout
-with `loadkeys us`.
+The first two entries of the boot menu switch the **language** (German/English)
+and the **keyboard layout**. Both are applied to the live system and carried
+over to the installed system by `surface-install`. They can be changed later:
+
+```sh
+surface-locale --lang en --keymap us   # or: --lang de --keymap de-latin1
+surface-locale --list-keymaps
+```
+
+The layouts offered in the boot menu are listed in
+[`keymaps.conf`](keymaps.conf); the defaults are `LIVE_LANG` and `LIVE_KEYMAP`
+in `config.sh`.
+
+The live system logs in as `root` automatically.
 
 ## Installing
 
@@ -184,6 +197,7 @@ build with `WITH_SPX_FIRMWARE=0`.
 build.sh                      entry point on the host (Docker, binfmt)
 config.sh                     settings
 devices.conf                  devices, devicetrees, kernel parameters
+keymaps.conf                  keyboard layouts offered in the boot menu
 packages.txt                  packages of the live system
 scripts/build-in-container.sh the actual build (pacstrap, SquashFS, GRUB, xorriso)
 scripts/chroot-customize.sh   tweaks inside the aarch64 root (initramfs, GRUB image)

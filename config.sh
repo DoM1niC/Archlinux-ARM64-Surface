@@ -19,6 +19,9 @@ ALARM_KEYRING_URL="https://raw.githubusercontent.com/archlinuxarm/PKGBUILDs/mast
 ALARM_MASTER_KEY="68B3537F39A313B3E574D06777193F152BDBE6A6"
 
 # --- Live-System -------------------------------------------------------------
+# Vorgaben für Sprache (de|en) und Tastaturbelegung; beides lässt sich beim
+# Start im Bootmenü und später mit surface-locale ändern.
+LIVE_LANG="${LIVE_LANG:-de}"
 LIVE_KEYMAP="${LIVE_KEYMAP:-de-latin1}"
 LIVE_FONT="${LIVE_FONT:-ter-132b}"          # große Konsolenschrift für HiDPI-Displays
 LIVE_TIMEZONE="${LIVE_TIMEZONE:-Europe/Berlin}"

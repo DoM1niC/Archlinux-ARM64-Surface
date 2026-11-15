@@ -4,24 +4,59 @@
 #
 # Partitionieren, Formatieren und Einhängen bleibt bewusst Handarbeit (wie bei
 # der normalen Arch-Installation) – dieses Skript fasst nichts an, was nicht
-# unter dem Zielverzeichnis eingehängt ist. Beispiel:
-#
-#   mount /dev/nvme0n1p5 /mnt                 # Root-Partition (ext4/btrfs/...)
-#   mount --mkdir /dev/nvme0n1p1 /mnt/efi     # vorhandene EFI-Systempartition
-#   surface-install /mnt
-#
-# Aufruf:
-#   surface-install [Optionen] [ZIEL]         (ZIEL ist standardmäßig /mnt)
-#
-#   --device ID       Gerät vorgeben statt erkennen (siehe: surface-device --list)
-#   --esp PFAD        Einhängepunkt der EFI-Systempartition (sonst automatisch:
-#                     ZIEL/efi, ZIEL/boot/efi oder ZIEL/boot)
-#   --hostname NAME   Rechnername (Standard: surface)
-#   --packages "..."  zusätzliche Pakete
-#   --no-firmware     keine Firmware aus Windows übernehmen
-#   --no-bootloader   GRUB nicht installieren (nur Konfiguration schreiben)
-#   --no-passwd       kein root-Passwort abfragen
+# unter dem Zielverzeichnis eingehängt ist.
 set -euo pipefail
+
+# shellcheck source=../../share/surface/i18n.sh
+source /usr/share/surface/i18n.sh
+
+usage() {
+    if [[ "$SURFACE_LANG" == en ]]; then
+        cat <<'USAGE'
+Installs Arch Linux ARM with the linux-surface kernel into a prepared, mounted
+target directory. Partitioning, formatting and mounting are left to you (as in
+a regular Arch installation). Example:
+
+  mount /dev/nvme0n1p5 /mnt                 # root partition (ext4/btrfs/...)
+  mount --mkdir /dev/nvme0n1p1 /mnt/efi     # existing EFI system partition
+  surface-install /mnt
+
+Usage:
+  surface-install [options] [TARGET]        (TARGET defaults to /mnt)
+
+  --device ID       force a device instead of detecting it (surface-device --list)
+  --esp PATH        mount point of the EFI system partition (default: detect
+                    TARGET/efi, TARGET/boot/efi or TARGET/boot)
+  --hostname NAME   host name (default: surface)
+  --packages "..."  additional packages
+  --no-firmware     do not take firmware from Windows
+  --no-bootloader   do not install GRUB (only write the configuration)
+  --no-passwd       do not ask for a root password
+USAGE
+    else
+        cat <<'USAGE'
+Installiert Arch Linux ARM mit linux-surface-Kernel in ein vorbereitetes,
+eingehängtes Zielverzeichnis. Partitionieren, Formatieren und Einhängen bleibt
+Handarbeit (wie bei der normalen Arch-Installation). Beispiel:
+
+  mount /dev/nvme0n1p5 /mnt                 # Root-Partition (ext4/btrfs/...)
+  mount --mkdir /dev/nvme0n1p1 /mnt/efi     # vorhandene EFI-Systempartition
+  surface-install /mnt
+
+Aufruf:
+  surface-install [Optionen] [ZIEL]         (ZIEL ist standardmäßig /mnt)
+
+  --device ID       Gerät vorgeben statt erkennen (siehe: surface-device --list)
+  --esp PFAD        Einhängepunkt der EFI-Systempartition (sonst automatisch:
+                    ZIEL/efi, ZIEL/boot/efi oder ZIEL/boot)
+  --hostname NAME   Rechnername (Standard: surface)
+  --packages "..."  zusätzliche Pakete
+  --no-firmware     keine Firmware aus Windows übernehmen
+  --no-bootloader   GRUB nicht installieren (nur Konfiguration schreiben)
+  --no-passwd       kein root-Passwort abfragen
+USAGE
+    fi
+}
 
 SHARE=/usr/share/surface
 target=/mnt
@@ -34,11 +69,11 @@ do_bootloader=1
 do_passwd=1
 
 msg()  { printf '\n\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33mWARNUNG:\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31mFEHLER:\033[0m %s\n' "$*" >&2; exit 1; }
+warn() { printf '\033[1;33m%s\033[0m %s\n' "$(t 'WARNUNG:' 'WARNING:')" "$*" >&2; }
+die()  { printf '\033[1;31m%s\033[0m %s\n' "$(t 'FEHLER:' 'ERROR:')" "$*" >&2; exit 1; }
 ask()  { # frage -> 0 bei ja
     local a
-    read -r -p "$1 [j/N] " a
+    read -r -p "$1 $(t '[j/N]' '[y/N]') " a
     [[ "$a" =~ ^[jJyY] ]]
 }
 
@@ -51,15 +86,16 @@ while [[ $# -gt 0 ]]; do
         --no-firmware)   do_firmware=0 ;;
         --no-bootloader) do_bootloader=0 ;;
         --no-passwd)     do_passwd=0 ;;
-        -h|--help)       sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        -*)              die "Unbekannte Option: $1" ;;
+        -h|--help)       usage; exit 0 ;;
+        -*)              die "$(t 'Unbekannte Option' 'Unknown option'): $1" ;;
         *)               target="${1%/}" ;;
     esac
     shift
 done
 
-(( EUID == 0 )) || die "Bitte als root ausführen."
-mountpoint -q "$target" || die "$target ist kein Einhängepunkt. Erst die Root-Partition dort einhängen."
+(( EUID == 0 )) || die "$(t 'Bitte als root ausführen.' 'Please run as root.')"
+mountpoint -q "$target" || die "$target: $(t 'kein Einhängepunkt. Erst die Root-Partition dort einhängen.' \
+                                             'not a mount point. Mount the root partition there first.')"
 
 # --- EFI-Systempartition -----------------------------------------------------
 if [[ -z "$esp" ]]; then
@@ -71,9 +107,11 @@ if [[ -z "$esp" ]]; then
     done
 fi
 if (( do_bootloader )); then
-    [[ -n "$esp" ]] || die "Keine EFI-Systempartition gefunden. Bitte unter $target/efi einhängen (oder --esp angeben)."
-    mountpoint -q "$esp" || die "$esp ist nicht eingehängt."
-    [[ "$esp" == "$target"/* ]] || die "Die EFI-Systempartition muss unterhalb von $target eingehängt sein."
+    [[ -n "$esp" ]] || die "$(t "Keine EFI-Systempartition gefunden. Bitte unter $target/efi einhängen (oder --esp angeben)." \
+                                "No EFI system partition found. Mount it at $target/efi (or pass --esp).")"
+    mountpoint -q "$esp" || die "$esp: $(t 'nicht eingehängt.' 'not mounted.')"
+    [[ "$esp" == "$target"/* ]] || die "$(t "Die EFI-Systempartition muss unterhalb von $target eingehängt sein." \
+                                            "The EFI system partition has to be mounted below $target.")"
 fi
 esp_in_target="${esp#"$target"}"
 
@@ -84,25 +122,28 @@ fi
 dtb=""
 dev_args=""
 if [[ -n "$device" ]]; then
-    dtb="$(surface-device --lookup "$device" --dtb)" || die "Unbekanntes Gerät '$device' (siehe: surface-device --list)."
+    dtb="$(surface-device --lookup "$device" --dtb)" \
+        || die "$(t 'Unbekanntes Gerät' 'Unknown device') '$device' (surface-device --list)"
     dev_args="$(surface-device --lookup "$device" --args)"
     dev_name="$(surface-device --lookup "$device" --name)"
 else
-    dev_name="unbekannt (ohne Devicetree)"
-    warn "Gerät nicht erkannt – es wird ohne Devicetree installiert. Auf einem Surface"
-    warn "startet das System so nicht; in dem Fall mit --device ID neu aufrufen."
+    dev_name="$(t 'unbekannt (ohne Devicetree)' 'unknown (no devicetree)')"
+    warn "$(t 'Gerät nicht erkannt – es wird ohne Devicetree installiert. Auf einem Surface startet das System so nicht; in dem Fall mit --device ID neu aufrufen.' \
+              'Device not detected – installing without a devicetree. On a Surface the system will not boot like this; rerun with --device ID in that case.')"
 fi
 
-msg "Zusammenfassung"
-echo "    Ziel:          $target  ($(findmnt -no SOURCE,FSTYPE "$target"))"
-(( do_bootloader )) && echo "    EFI-Partition: $esp  ($(findmnt -no SOURCE "$esp"))"
-echo "    Gerät:         $dev_name"
+msg "$(t 'Zusammenfassung' 'Summary')"
+echo "    $(t 'Ziel:         ' 'Target:       ') $target  ($(findmnt -no SOURCE,FSTYPE "$target"))"
+(( do_bootloader )) && echo "    $(t 'EFI-Partition:' 'EFI partition:') $esp  ($(findmnt -no SOURCE "$esp"))"
+echo "    $(t 'Gerät:        ' 'Device:       ') $dev_name"
 echo "    Devicetree:    ${dtb:-–}"
-echo "    Rechnername:   $hostname"
-ask "Installation starten?" || exit 1
+echo "    $(t 'Rechnername:  ' 'Host name:    ') $hostname"
+echo "    $(t 'Sprache:      ' 'Language:     ') $(sed -n 's/^LANG=//p' /etc/locale.conf)"
+echo "    $(t 'Tastatur:     ' 'Keyboard:     ') $(sed -n 's/^KEYMAP=//p' /etc/vconsole.conf)"
+ask "$(t 'Installation starten?' 'Start the installation?')" || exit 1
 
 # --- Pakete ------------------------------------------------------------------
-msg "Bereite Initramfs-Konfiguration vor"
+msg "$(t 'Bereite Initramfs-Konfiguration vor' 'Preparing the initramfs configuration')"
 install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
     "$target/usr/lib/initcpio/install/surface-qcom"
 
@@ -111,7 +152,7 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # Laden des Grafiktreibers das Bild stehen.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano iwd wireless-regdb terminus-font
-      e2fsprogs dosfstools)
+      e2fsprogs dosfstools ntfs-3g cryptsetup)
 case "$(findmnt -no FSTYPE "$target")" in
     btrfs) pkgs+=(btrfs-progs) ;;
     xfs)   pkgs+=(xfsprogs) ;;
@@ -121,20 +162,20 @@ if [[ "$device" == spx ]] && grep -q "^\[surface-local\]" /etc/pacman.conf; then
 fi
 pkgs+=("${extra_pkgs[@]}")
 
-msg "Installiere Pakete (pacstrap)"
+msg "$(t 'Installiere Pakete (pacstrap)' 'Installing packages (pacstrap)')"
 pacstrap "$target" "${pkgs[@]}"
 
 # Das Preset des Kernelpakets ruft mkinitcpio mit ausdrücklicher Konfigurations-
 # datei auf; Drop-ins unter mkinitcpio.conf.d werden dabei nicht gelesen. Die
 # Hooks müssen deshalb in /etc/mkinitcpio.conf selbst stehen.
-msg "Richte Initramfs ein"
+msg "$(t 'Richte Initramfs ein' 'Setting up the initramfs')"
 cat >> "$target/etc/mkinitcpio.conf" <<'EOF'
 
-# --- von surface-install ergänzt --------------------------------------------
-# Bewusst ohne "autodetect": Auf Snapdragon-Surface-Geräten hängen Display,
-# Tastatur und Massenspeicher an vielen Plattformtreibern, die autodetect
-# nicht zuverlässig findet. Der Hook "surface-qcom" nimmt sie alle auf.
-# Für verschlüsseltes Root "encrypt" vor "filesystems" ergänzen.
+# --- added by surface-install -------------------------------------------------
+# Deliberately without "autodetect": on Snapdragon-based Surface devices the
+# display, keyboard and storage depend on many platform drivers that autodetect
+# does not find reliably. The "surface-qcom" hook pulls them all in.
+# For an encrypted root add "encrypt" before "filesystems".
 HOOKS=(base udev modconf keyboard keymap consolefont block filesystems fsck surface-qcom)
 EOF
 cp /etc/vconsole.conf "$target/etc/vconsole.conf"
@@ -143,14 +184,14 @@ arch-chroot "$target" mkinitcpio -P
 if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
     cat >> "$target/etc/pacman.conf" <<EOF
 
-# Kernel für Snapdragon-Surface-Geräte (https://github.com/linux-surface)
+# Kernel for Snapdragon-based Surface devices (https://github.com/linux-surface)
 [linux-surface]
 $(sed -n '/^\[linux-surface\]/,/^$/{/^Server/p}' /etc/pacman.conf)
 EOF
 fi
 
 # --- Grundkonfiguration ------------------------------------------------------
-msg "Schreibe Grundkonfiguration"
+msg "$(t 'Schreibe Grundkonfiguration' 'Writing the base configuration')"
 genfstab -U "$target" > "$target/etc/fstab"
 echo "$hostname" > "$target/etc/hostname"
 cp /etc/vconsole.conf /etc/locale.conf "$target/etc/"
@@ -165,28 +206,34 @@ if [[ "$device" == spx ]] && [[ -e "$target/usr/lib/systemd/system/rmtfs.service
     arch-chroot "$target" systemctl enable tqftpserv.service rmtfs.service
 fi
 
+# Werkzeuge auch im installierten System bereitstellen
+install -Dm755 -t "$target/usr/local/bin" \
+    /usr/local/bin/surface-device /usr/local/bin/surface-fw-extract /usr/local/bin/surface-locale
+install -Dm644 -t "$target/usr/share/surface" "$SHARE/devices.conf" "$SHARE/i18n.sh"
+install -Dm644 /etc/surface/lang "$target/etc/surface/lang"
+
 # --- Firmware ----------------------------------------------------------------
 if [[ "$device" == spx && -d "$SHARE/firmware" ]]; then
-    msg "Kopiere Firmware für das Surface Pro X"
+    msg "$(t 'Kopiere Firmware für das Surface Pro X' 'Copying the firmware for the Surface Pro X')"
     cp -a "$SHARE/firmware/." "$target/usr/lib/firmware/"
 fi
 if (( do_firmware )) && [[ -d /sys/firmware/devicetree/base ]]; then
-    msg "Übernehme gerätespezifische Firmware aus Windows"
+    msg "$(t 'Übernehme gerätespezifische Firmware aus Windows' 'Taking the device-specific firmware from Windows')"
     surface-fw-extract --root "$target" || \
-        warn "Firmware unvollständig. Ohne sie fehlen z. B. GPU-Beschleunigung, Ton oder
-         Akkuanzeige. Später nachholen mit: surface-fw-extract --root $target"
+        warn "$(t "Firmware unvollständig. Ohne sie fehlen z. B. GPU-Beschleunigung, Ton oder Akkuanzeige. Später nachholen mit: surface-fw-extract --root $target" \
+                  "Firmware incomplete. Without it GPU acceleration, audio or the battery indicator are missing, for example. Catch up later with: surface-fw-extract --root $target")"
 fi
 
 # --- Bootloader --------------------------------------------------------------
-msg "Richte Bootkonfiguration ein"
+msg "$(t 'Richte Bootkonfiguration ein' 'Setting up the boot configuration')"
 cat > "$target/etc/default/surface-boot" <<EOF
-# Von surface-install angelegt; wird von /etc/grub.d/09_surface gelesen.
-# Nach Änderungen: grub-mkconfig -o /boot/grub/grub.cfg
+# Written by surface-install; read by /etc/grub.d/09_surface.
+# After changes run: grub-mkconfig -o /boot/grub/grub.cfg
 
-# Devicetree des Geräts (Datei unter /boot/dtb/linux-surface/qcom/)
+# Devicetree of this device (file below /boot/dtb/linux-surface/qcom/)
 SURFACE_DTB="$dtb"
 
-# Kernel-Parameter, die dieses Gerät braucht
+# Kernel parameters this device needs
 SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused${dev_args:+ $dev_args}"
 EOF
 install -Dm755 "$SHARE/target/etc/grub.d/09_surface" "$target/etc/grub.d/09_surface"
@@ -194,7 +241,7 @@ install -Dm755 "$SHARE/target/etc/grub.d/09_surface" "$target/etc/grub.d/09_surf
 chmod -x "$target/etc/grub.d/10_linux"
 
 if (( do_bootloader )); then
-    msg "Installiere GRUB"
+    msg "$(t 'Installiere GRUB' 'Installing GRUB')"
     nvram_ok=0
     if arch-chroot "$target" grub-install --target=arm64-efi \
             --efi-directory="$esp_in_target" --bootloader-id=arch --recheck; then
@@ -208,21 +255,36 @@ if (( do_bootloader )); then
 
     if (( ! nvram_ok )); then
         fallback="$esp/EFI/BOOT/BOOTAA64.EFI"
-        warn "Der UEFI-Booteintrag konnte nicht geschrieben werden (auf diesen Geräten sind"
-        warn "UEFI-Variablen unter Linux nicht immer schreibbar)."
-        echo "    GRUB liegt unter $esp/EFI/arch/grubaa64.efi."
-        echo "    Damit die Firmware es findet, kann es zusätzlich als Standard-Bootloader"
-        echo "    ($fallback) abgelegt werden."
-        [[ -e "$fallback" ]] && echo "    Die vorhandene Datei wird als BOOTAA64.EFI.bak gesichert; Windows bleibt über"
-        [[ -e "$fallback" ]] && echo "    seinen eigenen Eintrag (EFI/Microsoft/Boot/bootmgfw.efi) startbar."
-        if ask "GRUB als Standard-Bootloader ablegen?"; then
+        if [[ "$SURFACE_LANG" == en ]]; then
+            warn "The UEFI boot entry could not be written (on these devices UEFI variables"
+            warn "are not always writable from Linux)."
+            echo "    GRUB is at $esp/EFI/arch/grubaa64.efi."
+            echo "    So that the firmware finds it, it can additionally be placed as the"
+            echo "    default bootloader ($fallback)."
+            if [[ -e "$fallback" ]]; then
+                echo "    The existing file is backed up as BOOTAA64.EFI.bak; Windows stays bootable"
+                echo "    through its own entry (EFI/Microsoft/Boot/bootmgfw.efi)."
+            fi
+        else
+            warn "Der UEFI-Booteintrag konnte nicht geschrieben werden (auf diesen Geräten sind"
+            warn "UEFI-Variablen unter Linux nicht immer schreibbar)."
+            echo "    GRUB liegt unter $esp/EFI/arch/grubaa64.efi."
+            echo "    Damit die Firmware es findet, kann es zusätzlich als Standard-Bootloader"
+            echo "    ($fallback) abgelegt werden."
+            if [[ -e "$fallback" ]]; then
+                echo "    Die vorhandene Datei wird als BOOTAA64.EFI.bak gesichert; Windows bleibt über"
+                echo "    seinen eigenen Eintrag (EFI/Microsoft/Boot/bootmgfw.efi) startbar."
+            fi
+        fi
+        if ask "$(t 'GRUB als Standard-Bootloader ablegen?' 'Place GRUB as the default bootloader?')"; then
             if [[ -e "$fallback" && ! -e "$fallback.bak" ]]; then
                 cp "$fallback" "$fallback.bak"
             fi
             arch-chroot "$target" grub-install --target=arm64-efi \
                 --efi-directory="$esp_in_target" --removable --no-nvram
         else
-            warn "Nicht abgelegt. Der Start muss dann von Hand eingerichtet werden."
+            warn "$(t 'Nicht abgelegt. Der Start muss dann von Hand eingerichtet werden.' \
+                      'Not placed. Booting has to be set up by hand then.')"
         fi
     fi
 fi
@@ -231,12 +293,26 @@ arch-chroot "$target" grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- Abschluss ---------------------------------------------------------------
 if (( do_passwd )); then
-    msg "Passwort für root festlegen"
-    arch-chroot "$target" passwd || warn "Kein Passwort gesetzt – später nachholen: arch-chroot $target passwd"
+    msg "$(t 'Passwort für root festlegen' 'Set the root password')"
+    arch-chroot "$target" passwd \
+        || warn "$(t 'Kein Passwort gesetzt – später nachholen:' 'No password set – catch up later:') arch-chroot $target passwd"
 fi
 
-msg "Fertig"
-cat <<EOF
+msg "$(t 'Fertig' 'Done')"
+if [[ "$SURFACE_LANG" == en ]]; then
+    cat <<EOF
+    Further setup (users, desktop, ...):  arch-chroot $target
+    Then:  umount -R $target && reboot
+
+    Notes:
+      * Secure Boot has to stay disabled in the Surface UEFI settings.
+      * Device/devicetree are in /etc/default/surface-boot.
+      * The initramfs hooks are at the end of /etc/mkinitcpio.conf.
+      * surface-fw-extract and surface-locale are available in the installed
+        system as well.
+EOF
+else
+    cat <<EOF
     Weitere Einrichtung (Benutzer, Desktop, ...):  arch-chroot $target
     Danach:  umount -R $target && reboot
 
@@ -244,4 +320,7 @@ cat <<EOF
       * Secure Boot muss in den Surface-UEFI-Einstellungen ausgeschaltet bleiben.
       * Gerät/Devicetree stehen in /etc/default/surface-boot.
       * Die Initramfs-Hooks stehen am Ende von /etc/mkinitcpio.conf.
+      * surface-fw-extract und surface-locale gibt es auch im installierten
+        System.
 EOF
+fi

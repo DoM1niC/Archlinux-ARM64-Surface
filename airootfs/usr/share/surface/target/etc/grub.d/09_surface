@@ -37,12 +37,12 @@ surface_entry() { # titel id kernel-parameter initramfs
     echo "menuentry '$1' --class arch --class gnu-linux --class os --id '$2' {"
     prepare_grub_to_access_device "${boot_dev}" | sed 's/^/\t/'
     echo "	insmod gzio"
-    echo "	echo 'Lade Kernel ${SURFACE_KERNEL}...'"
+    echo "	echo 'Loading kernel ${SURFACE_KERNEL}...'"
     echo "	linux ${boot_rel}/vmlinuz-${SURFACE_KERNEL} ${root_arg} rw $3"
     if [ -n "${SURFACE_DTB}" ]; then
         echo "	devicetree ${boot_rel}/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
     fi
-    echo "	echo 'Lade Initramfs...'"
+    echo "	echo 'Loading initramfs...'"
     echo "	initrd ${boot_rel}/$4"
     echo "}"
 }
@@ -52,7 +52,7 @@ if [ -n "${SURFACE_DTB}" ]; then
     if [ -e "/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}" ]; then
         gettext_printf "Found devicetree: %s\n" "${SURFACE_DTB}" >&2
     else
-        echo "WARNUNG: Devicetree /boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB} fehlt!" >&2
+        echo "WARNING: devicetree /boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB} is missing!" >&2
     fi
 fi
 
@@ -65,6 +65,6 @@ if [ -e "/boot/initramfs-${SURFACE_KERNEL}-fallback.img" ]; then
 else
     fallback_initrd="initramfs-${SURFACE_KERNEL}.img"
 fi
-surface_entry "Arch Linux ARM (${SURFACE_KERNEL}, ausführliche Meldungen)" "surface-verbose" \
+surface_entry "Arch Linux ARM (${SURFACE_KERNEL}, verbose)" "surface-verbose" \
     "${SURFACE_CMDLINE} ${GRUB_CMDLINE_LINUX}" \
     "${fallback_initrd}"

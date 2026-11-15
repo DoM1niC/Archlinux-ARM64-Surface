@@ -78,7 +78,7 @@ nächsten Neustart des Hosts).
 ```
 
 Einstellungen stehen in [`config.sh`](config.sh) und lassen sich per Umgebung
-überschreiben, z. B. `LIVE_KEYMAP=us ./build.sh`. Die Pakete des Live-Systems
+überschreiben, z. B. `LIVE_LANG=en LIVE_KEYMAP=us ./build.sh`. Die Pakete des Live-Systems
 stehen in [`packages.txt`](packages.txt).
 
 Rauchtest in QEMU (ohne Surface-Hardware, generischer Booteintrag):
@@ -123,8 +123,20 @@ verloren.)
    erkannt, ist der passende Eintrag vorausgewählt; diese Erkennung ist nur
    eine Hilfe – ein falscher Devicetree startet nicht oder ohne Bild.
 
-Das Live-System meldet sich automatisch als `root` an. Tastaturbelegung ist
-`de-latin1` (ändern mit `loadkeys us`).
+Die ersten beiden Einträge des Bootmenüs stellen **Sprache** (Deutsch/Englisch)
+und **Tastaturbelegung** um. Beides gilt für das Live-System und wird von
+`surface-install` ins installierte System übernommen. Später ändern:
+
+```sh
+surface-locale --lang en --keymap us   # oder: --lang de --keymap de-latin1
+surface-locale --list-keymaps
+```
+
+Welche Belegungen das Bootmenü anbietet, steht in
+[`keymaps.conf`](keymaps.conf); die Vorgaben sind `LIVE_LANG` und `LIVE_KEYMAP`
+in `config.sh`.
+
+Das Live-System meldet sich automatisch als `root` an.
 
 ## Installieren
 
@@ -186,6 +198,7 @@ oder mit `WITH_SPX_FIRMWARE=0` bauen.
 build.sh                      Einstieg auf dem Host (Docker, binfmt)
 config.sh                     Einstellungen
 devices.conf                  Geräte, Devicetrees, Kernel-Parameter
+keymaps.conf                  Tastaturbelegungen im Bootmenü
 packages.txt                  Pakete des Live-Systems
 scripts/build-in-container.sh eigentlicher Build (pacstrap, SquashFS, GRUB, xorriso)
 scripts/chroot-customize.sh   Anpassungen im aarch64-Root (Initramfs, GRUB-Image)

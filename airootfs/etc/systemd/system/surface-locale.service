@@ -1,0 +1,15 @@
+[Unit]
+Description=Sprache und Tastatur aus dem Bootmenü übernehmen / apply language and keyboard from the boot menu
+After=systemd-vconsole-setup.service
+Before=getty.target getty@tty1.service serial-getty@ttyAMA0.service
+ConditionKernelCommandLine=|surface.lang
+ConditionKernelCommandLine=|surface.keymap
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/surface-locale --boot
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

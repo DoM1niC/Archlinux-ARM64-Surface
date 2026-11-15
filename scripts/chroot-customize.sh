@@ -7,7 +7,14 @@ ldconfig
 # --- Sprache, Tastatur, Zeit -------------------------------------------------
 sed -i -E 's/^#(en_US\.UTF-8 UTF-8)/\1/; s/^#(de_DE\.UTF-8 UTF-8)/\1/' /etc/locale.gen
 locale-gen >/dev/null
-echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+install -d /etc/surface
+if [[ "$LIVE_LANG" == en ]]; then
+    echo en > /etc/surface/lang
+    echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+else
+    echo de > /etc/surface/lang
+    echo 'LANG=de_DE.UTF-8' > /etc/locale.conf
+fi
 printf 'KEYMAP=%s\nFONT=%s\n' "$LIVE_KEYMAP" "$LIVE_FONT" > /etc/vconsole.conf
 ln -sf "/usr/share/zoneinfo/$LIVE_TIMEZONE" /etc/localtime
 echo "$LIVE_HOSTNAME" > /etc/hostname
@@ -31,7 +38,8 @@ fi
 
 # --- Dienste -----------------------------------------------------------------
 systemctl enable systemd-networkd.service systemd-resolved.service \
-    systemd-timesyncd.service iwd.service pacman-init.service >/dev/null
+    systemd-timesyncd.service iwd.service pacman-init.service \
+    surface-locale.service >/dev/null
 if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
     systemctl enable tqftpserv.service rmtfs.service >/dev/null
 fi

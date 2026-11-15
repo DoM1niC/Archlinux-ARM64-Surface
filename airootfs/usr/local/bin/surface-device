@@ -1,14 +1,33 @@
 #!/bin/bash
 # Erkennt das laufende Surface-Gerät anhand des Devicetrees und gibt die
 # zugehörigen Angaben aus devices.conf aus.
-#
-#   surface-device            lesbare Zusammenfassung
-#   surface-device --id       nur die Geräte-ID (z. B. sl7-13)
-#   surface-device --name | --dtb | --args | --compatible
-#   surface-device --list     alle bekannten Geräte
-#   surface-device --lookup ID --dtb     Angaben zu einem bestimmten Gerät
+# Detects the running Surface device from its devicetree and prints the
+# matching data from devices.conf.
+
+# shellcheck source=../../share/surface/i18n.sh
+source /usr/share/surface/i18n.sh
 
 CONF="${SURFACE_DEVICES_CONF:-/usr/share/surface/devices.conf}"
+
+usage() {
+    if [[ "$SURFACE_LANG" == en ]]; then
+        cat <<'USAGE'
+surface-device            readable summary
+surface-device --id       only the device ID (e.g. sl7-13)
+surface-device --name | --dtb | --args | --compatible
+surface-device --list     all known devices
+surface-device --lookup ID --dtb     data for a specific device
+USAGE
+    else
+        cat <<'USAGE'
+surface-device            lesbare Zusammenfassung
+surface-device --id       nur die Geräte-ID (z. B. sl7-13)
+surface-device --name | --dtb | --args | --compatible
+surface-device --list     alle bekannten Geräte
+surface-device --lookup ID --dtb     Angaben zu einem bestimmten Gerät
+USAGE
+    fi
+}
 
 lookup_id=""
 field=""
@@ -21,8 +40,8 @@ while [[ $# -gt 0 ]]; do
                 printf '%-10s %-40s %s\n' "$id" "$name" "$dtb"
             done
             exit 0 ;;
-        -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "$(t 'Unbekannte Option' 'Unknown option'): $1" >&2; exit 2 ;;
     esac
     shift
 done
@@ -51,9 +70,11 @@ done < "$CONF"
 if (( ! found )); then
     if [[ -z "$field" ]]; then
         if [[ ${#machine_compat[@]} -gt 0 ]]; then
-            echo "Unbekanntes Gerät (Devicetree: ${machine_compat[*]})"
+            echo "$(t 'Unbekanntes Gerät (Devicetree:' 'Unknown device (devicetree:') ${machine_compat[*]})"
         else
-            echo "Kein Devicetree vorhanden (ACPI-Boot, z. B. virtuelle Maschine)"
+            t 'Kein Devicetree vorhanden (ACPI-Boot, z. B. virtuelle Maschine)' \
+              'No devicetree present (ACPI boot, e.g. a virtual machine)'
+            echo
         fi
     fi
     exit 1
@@ -66,7 +87,7 @@ case "$field" in
     args)       echo "$args" ;;
     compatible) echo "$compat" ;;
     *)
-        echo "Gerät:       $name ($id)"
+        echo "$(t 'Gerät:      ' 'Device:     ') $name ($id)"
         echo "Devicetree:  qcom/$dtb"
         echo "Kernel-Args: clk_ignore_unused pd_ignore_unused${args:+ $args}"
         ;;

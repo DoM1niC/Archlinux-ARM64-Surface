@@ -67,7 +67,7 @@ run=(docker run --rm --privileged
      -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)")
 
 # Konfigurations-Overrides aus der Umgebung durchreichen
-for v in ISO_NAME ISO_LABEL ALARM_MIRROR SURFACE_REPO LIVE_KEYMAP LIVE_FONT \
+for v in ISO_NAME ISO_LABEL ALARM_MIRROR SURFACE_REPO LIVE_LANG LIVE_KEYMAP LIVE_FONT \
          LIVE_TIMEZONE LIVE_HOSTNAME WITH_SPX_FIRMWARE WITH_QCOM_USERSPACE \
          WITH_SPX_GRUB REBUILD; do
     [[ -v $v ]] && run+=(-e "$v=${!v}")

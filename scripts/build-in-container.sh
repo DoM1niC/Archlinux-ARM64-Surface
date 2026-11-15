@@ -233,7 +233,7 @@ fi
 configfile (\$root)/boot/grub/grub.cfg
 EOF
     arch-chroot "$ROOTFS" env \
-        LIVE_KEYMAP="$LIVE_KEYMAP" LIVE_FONT="$LIVE_FONT" \
+        LIVE_KEYMAP="$LIVE_KEYMAP" LIVE_FONT="$LIVE_FONT" LIVE_LANG="$LIVE_LANG" \
         LIVE_TIMEZONE="$LIVE_TIMEZONE" LIVE_HOSTNAME="$LIVE_HOSTNAME" \
         WITH_QCOM_USERSPACE="$WITH_QCOM_USERSPACE" SURFACE_REPO="$SURFACE_REPO" \
         /root/customize.sh
@@ -274,6 +274,13 @@ write_grub_cfg() { # zieldatei
 
 insmod gzio
 
+# Sprache und Tastaturbelegung: Vorgabe aus config.sh, im Menü änderbar. Die
+# Variablen sind exportiert und überstehen so das Neuladen des Menüs.
+if [ -z "\$lang" ]; then set lang="$LIVE_LANG"; fi
+if [ -z "\$keymap" ]; then set keymap="$LIVE_KEYMAP"; fi
+export lang
+export keymap
+
 if [ -n "\$iso_path" ]; then
     # Start aus einer ISO-Datei (Ventoy im GRUB2-Modus, loopback.cfg): Das
     # Live-System bindet die Datei selbst per Loop-Mount ein.
@@ -285,7 +292,7 @@ else
     set loopback_boot=""
     set iso_args="archisosearchuuid=${ISO_UUID}"
 fi
-set base_args="\$iso_args $base"
+set base_args="\$iso_args $base surface.lang=\$lang surface.keymap=\$keymap"
 set detected=""
 set sys_product=""
 set sys_sku=""
@@ -321,7 +328,60 @@ else
     set timeout=-1
 fi
 
-menuentry "Bitte das passende Gerät wählen (Firmware meldet: '$sys_product' / '$sys_sku')" --id hint {
+# Texte des Menüs
+if [ "$lang" = "en" ]; then
+    set t_lang="Language: English   (Enter: auf Deutsch umschalten)"
+    set t_kbd="Keyboard layout"
+    set t_hint="Please select your device (firmware reports"
+    set t_generic="generic, no devicetree (ACPI; e.g. QEMU/VM)"
+    set t_spxgrub="Surface Pro X: load the patched linux-surface GRUB (if booting hangs)"
+    set t_shell="UEFI shell"
+    set t_fwsetup="UEFI firmware settings"
+    set t_reboot="Reboot"
+    set t_poweroff="Power off"
+    set t_kernel="Loading kernel..."
+    set t_dtb="Loading devicetree"
+    set t_initrd="Loading initramfs..."
+    set t_start="Starting..."
+else
+    set t_lang="Sprache: Deutsch   (Enter: switch to English)"
+    set t_kbd="Tastaturbelegung"
+    set t_hint="Bitte das passende Gerät wählen (Firmware meldet"
+    set t_generic="generisch, ohne Devicetree (ACPI; z. B. QEMU/VM)"
+    set t_spxgrub="Surface Pro X: gepatchtes linux-surface-GRUB laden (falls der Start hängt)"
+    set t_shell="UEFI-Shell"
+    set t_fwsetup="UEFI-Firmware-Einstellungen"
+    set t_reboot="Neu starten"
+    set t_poweroff="Ausschalten"
+    set t_kernel="Lade Kernel..."
+    set t_dtb="Lade Devicetree"
+    set t_initrd="Lade Initramfs..."
+    set t_start="Starte..."
+fi
+
+menuentry "$t_lang" --id lang {
+    if [ "$lang" = "en" ]; then set lang="de"; else set lang="en"; fi
+    export lang
+    configfile /boot/grub/grub.cfg
+}
+
+submenu "$t_kbd: $keymap" --id kbd {
+EOF
+        local km label
+        while IFS='|' read -r km label; do
+            [[ "$km" =~ ^\s*(#|$) ]] && continue
+            cat <<EOF
+    menuentry "$km  ($label)" {
+        set keymap="$km"
+        export keymap
+        configfile /boot/grub/grub.cfg
+    }
+EOF
+        done < "$PROJECT/keymaps.conf"
+        cat <<'EOF'
+}
+
+menuentry "$t_hint: '$sys_product' / '$sys_sku')" --id hint {
     true
 }
 
@@ -331,19 +391,19 @@ EOF
             name="${name//\"/\\\"}"   # Anführungszeichen (Zoll) für GRUB maskieren
             cat <<EOF
 menuentry "Arch Linux ARM – $name" --id $id {
-    echo "Lade Kernel..."
+    echo "\$t_kernel"
     linux /boot/vmlinuz-linux-surface \$base_args $args
-    echo "Lade Devicetree $dtb..."
+    echo "\$t_dtb $dtb..."
     devicetree /boot/dtb/qcom/$dtb
-    echo "Lade Initramfs..."
+    echo "\$t_initrd"
     initrd /boot/initramfs-linux-surface.img
-    echo "Starte..."
+    echo "\$t_start"
 }
 
 EOF
         done < "$PROJECT/devices.conf"
         cat <<'EOF'
-menuentry "Arch Linux ARM – generisch, ohne Devicetree (ACPI; z. B. QEMU/VM)" --id generic {
+menuentry "Arch Linux ARM – $t_generic" --id generic {
     linux /boot/vmlinuz-linux-surface $base_args console=tty0 console=ttyAMA0
     initrd /boot/initramfs-linux-surface.img
 }
@@ -352,7 +412,7 @@ EOF
         if [[ "$WITH_SPX_GRUB" == 1 ]]; then
             cat <<'EOF'
 if [ -z "$spx_grub" -a -z "$loopback_boot" ]; then
-    menuentry "Surface Pro X: gepatchtes linux-surface-GRUB laden (falls der Start hängt)" --id spxgrub {
+    menuentry "$t_spxgrub" --id spxgrub {
         chainloader /EFI/spx/bootaa64.efi
     }
 fi
@@ -361,20 +421,20 @@ EOF
         fi
         cat <<'EOF'
 if [ -z "$loopback_boot" ]; then
-    menuentry "UEFI-Shell" --id shell {
+    menuentry "$t_shell" --id shell {
         chainloader /EFI/tools/shellaa64.efi
     }
 fi
 
-menuentry "UEFI-Firmware-Einstellungen" --id fwsetup {
+menuentry "$t_fwsetup" --id fwsetup {
     fwsetup
 }
 
-menuentry "Neu starten" --id reboot {
+menuentry "$t_reboot" --id reboot {
     reboot
 }
 
-menuentry "Ausschalten" --id poweroff {
+menuentry "$t_poweroff" --id poweroff {
     halt
 }
 EOF
@@ -419,6 +479,7 @@ build_iso() {
         cat > "$ESPDIR/EFI/spx/grub.cfg" <<EOF
 search --no-floppy --file --set=root /boot/grub/${ISO_UUID}.esp
 set spx_grub=1
+export spx_grub
 configfile /boot/grub/grub.cfg
 EOF
     fi

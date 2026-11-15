@@ -11,7 +11,7 @@ build() {
     local -a dirs=(
         # SoC-Grundlagen
         clk/qcom pinctrl/qcom soc/qcom interconnect/qcom firmware/qcom
-        regulator mfd spmi nvmem reset mailbox rpmsg remoteproc power/reset
+        regulator mfd spmi nvmem reset mailbox rpmsg power/reset
         iommu cpufreq pmdomain/qcom irqchip
         # Busse
         i2c/busses spi tty/serial/qcom_geni_serial pwm
@@ -31,6 +31,29 @@ build() {
     for dir in "${dirs[@]}"; do
         add_all_modules "/drivers/${dir}/"
     done
+
+    # Bewusst NICHT im Initramfs: drivers/remoteproc (ADSP/CDSP). Deren Firmware
+    # liegt nur im Root-Dateisystem; würde der Treiber schon hier geladen,
+    # schlüge das Laden fehl und würde später nicht wiederholt – ohne ADSP
+    # fehlen Akkuanzeige, USB-C-Erkennung und Ton.
+
+    # Der Grafiktreiber (msm) wird dagegen früh geladen und braucht die
+    # Adreno-Firmware; mkinitcpio findet sie nicht von selbst.
+    local fw fwdir=/usr/lib/firmware
+    for fw in "$fwdir"/qcom/gen[0-9]*_sqe.fw* "$fwdir"/qcom/gen[0-9]*_gmu.bin* \
+              "$fwdir"/qcom/a[67][0-9][0-9]_sqe.fw* "$fwdir"/qcom/a[67][0-9][0-9]_gmu.bin*; do
+        [[ -e "$fw" ]] || continue
+        fw="${fw#"$fwdir"/}"
+        add_firmware "${fw%.zst}"
+    done
+    # ... sowie die gerätespezifische GPU-Firmware (zap shader), die der
+    # Devicetree des laufenden Systems nennt – sofern sie schon vorhanden ist.
+    if [[ -d /sys/firmware/devicetree/base ]]; then
+        while IFS= read -r fw; do
+            [[ "$fw" == *dxkms* || "$fw" == *zap* ]] || continue
+            [[ -e "$fwdir/$fw" || -e "$fwdir/$fw.zst" ]] && add_firmware "$fw"
+        done < <(find /sys/firmware/devicetree/base -name firmware-name -exec cat {} + 2>/dev/null | tr '\0' '\n')
+    fi
 }
 
 help() {
