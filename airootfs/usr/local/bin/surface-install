@@ -106,7 +106,10 @@ msg "Bereite Initramfs-Konfiguration vor"
 install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
     "$target/usr/lib/initcpio/install/surface-qcom"
 
-pkgs=(base linux-surface linux-firmware mkinitcpio grub efibootmgr
+# linux-firmware-qcom gehört nicht zum Metapaket linux-firmware, enthält aber
+# die GPU-/DSP-Firmware der Snapdragon-Plattformen – ohne sie bleibt nach dem
+# Laden des Grafiktreibers das Bild stehen.
+pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano iwd wireless-regdb terminus-font
       e2fsprogs dosfstools)
 case "$(findmnt -no FSTYPE "$target")" in
