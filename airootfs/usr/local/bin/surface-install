@@ -151,7 +151,7 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # die GPU-/DSP-Firmware der Snapdragon-Plattformen – ohne sie bleibt nach dem
 # Laden des Grafiktreibers das Bild stehen.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
-      archlinuxarm-keyring sudo nano iwd wireless-regdb terminus-font
+      archlinuxarm-keyring sudo nano networkmanager wireless-regdb terminus-font
       bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
       e2fsprogs dosfstools ntfs-3g cryptsetup)
 case "$(findmnt -no FSTYPE "$target")" in
@@ -205,11 +205,13 @@ echo "$hostname" > "$target/etc/hostname"
 cp /etc/vconsole.conf /etc/locale.conf "$target/etc/"
 cp /etc/locale.gen "$target/etc/locale.gen"
 cp -P /etc/localtime "$target/etc/localtime"
-cp /etc/systemd/network/20-*.network "$target/etc/systemd/network/"
 ln -sf /run/systemd/resolve/stub-resolv.conf "$target/etc/resolv.conf"
 arch-chroot "$target" locale-gen >/dev/null
-arch-chroot "$target" systemctl enable systemd-networkd.service systemd-resolved.service \
-    systemd-timesyncd.service iwd.service
+# Netzwerk im installierten System: allein NetworkManager (Konsole: nmtui).
+# iwd oder systemd-networkd daneben würden sich mit ihm um das WLAN streiten –
+# die Passwortabfrage des Desktops bleibt dann aus.
+arch-chroot "$target" systemctl enable NetworkManager.service systemd-resolved.service \
+    systemd-timesyncd.service
 if [[ "$device" == spx ]] && [[ -e "$target/usr/lib/systemd/system/rmtfs.service" ]]; then
     arch-chroot "$target" systemctl enable tqftpserv.service rmtfs.service
 fi
@@ -343,6 +345,7 @@ if [[ "$SURFACE_LANG" == en ]]; then
       * The initramfs hooks are at the end of /etc/mkinitcpio.conf.
       * surface-fw-extract and surface-locale are available in the installed
         system as well.
+      * Networking is handled by NetworkManager (console: nmtui).
 EOF
 else
     cat <<EOF
@@ -355,5 +358,6 @@ else
       * Die Initramfs-Hooks stehen am Ende von /etc/mkinitcpio.conf.
       * surface-fw-extract und surface-locale gibt es auch im installierten
         System.
+      * Das Netzwerk verwaltet NetworkManager (Konsole: nmtui).
 EOF
 fi

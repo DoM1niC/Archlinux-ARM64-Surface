@@ -12,7 +12,7 @@ build() {
         # SoC-Grundlagen
         clk/qcom pinctrl/qcom soc/qcom interconnect/qcom firmware/qcom
         regulator mfd spmi nvmem reset mailbox rpmsg power/reset
-        iommu cpufreq pmdomain/qcom irqchip
+        iommu cpufreq pmdomain/qcom irqchip dma/qcom hwspinlock bus
         # Busse
         i2c/busses spi tty/serial/qcom_geni_serial pwm
         # Speicher
