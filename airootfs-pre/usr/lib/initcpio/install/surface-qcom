@@ -1,0 +1,41 @@
+#!/bin/bash
+# mkinitcpio-Hook: Treiber, die Snapdragon-Surface-Geräte schon im Initramfs
+# brauchen, um Display, Tastatur und das Boot-Medium (USB/NVMe/UFS) zu
+# erreichen. Auf diesen Plattformen hängt fast jedes Gerät an Takt-, Regler-,
+# PHY- und Interconnect-Treibern; fehlt einer davon, bleibt der Start beim
+# Warten auf das Root-Dateisystem stehen. Deshalb wird bewusst großzügig
+# eingesammelt statt per autodetect.
+
+build() {
+    local dir
+    local -a dirs=(
+        # SoC-Grundlagen
+        clk/qcom pinctrl/qcom soc/qcom interconnect/qcom firmware/qcom
+        regulator mfd spmi nvmem reset mailbox rpmsg remoteproc power/reset
+        iommu cpufreq pmdomain/qcom irqchip
+        # Busse
+        i2c/busses spi tty/serial/qcom_geni_serial pwm
+        # Speicher
+        nvme pci/controller pci/pwrctrl power/sequencing ufs mmc/host phy/qualcomm phy
+        # USB / Type-C
+        usb/dwc3 usb/host usb/typec usb/common usb/roles usb/misc usb/storage
+        soc/qcom/pmic_glink
+        # Anzeige
+        gpu/drm/msm gpu/drm/panel gpu/drm/bridge gpu/drm/display video/backlight leds
+        # Eingabe (Surface Aggregator, HID)
+        platform/surface hid input/keyboard input/misc
+        # Akku / Ladezustand
+        power/supply
+    )
+
+    for dir in "${dirs[@]}"; do
+        add_all_modules "/drivers/${dir}/"
+    done
+}
+
+help() {
+    cat <<HELPEOF
+Nimmt die Plattformtreiber für Qualcomm-Snapdragon-basierte Surface-Geräte
+(SC8180X, SC8280XP, X1E80100/X1P) in das Initramfs auf.
+HELPEOF
+}

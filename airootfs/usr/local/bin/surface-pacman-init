@@ -1,0 +1,7 @@
+#!/bin/bash
+# Erzeugt den pacman-Schlüsselbund des Live-Systems beim ersten Start.
+set -e
+pacman-key --init
+pacman-key --populate archlinuxarm
+pacman-key --add /usr/share/surface/surface.asc
+pacman-key --lsign-key 56C464BAAC421453

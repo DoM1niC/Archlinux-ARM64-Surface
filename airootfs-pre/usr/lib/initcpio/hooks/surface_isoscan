@@ -1,0 +1,62 @@
+#!/usr/bin/ash
+# Sucht das Live-ISO als Datei auf den vorhandenen Partitionen.
+#
+# Ventoy & Co. starten den Bootloader aus der ISO-Datei; der Kernel sieht aber
+# nur den Stick mit seinem exFAT/NTFS-Dateisystem – kein Gerät mit der UUID des
+# ISOs. Taucht dieses Gerät nicht auf, werden alle Partitionen nach *.iso mit
+# passender UUID durchsucht und der Fund an archiso_loop_mnt übergeben
+# (entspricht den Kernel-Parametern img_dev=... img_loop=...).
+
+_isoscan_find() {
+    local dev iso mnt="/run/surface-isoscan"
+
+    mkdir -p "${mnt}"
+    for dev in $(lsblk -no PATH -Q 'RM == 1 && TYPE == "part"') \
+               $(lsblk -no PATH -Q 'RM == 0 && TYPE == "part"'); do
+        [ -b "${dev}" ] || continue
+        case "$(blkid -o value -s TYPE "${dev}" 2>/dev/null)" in
+            exfat | ntfs | vfat | ext4 | btrfs | xfs | f2fs) ;;
+            *) continue ;;
+        esac
+        mount -r -o 'x-initrd.mount' "${dev}" "${mnt}" 2>/dev/null || continue
+        # Kein find im Initramfs: bis zu drei Verzeichnisebenen per Globbing
+        for iso in "${mnt}"/*.[iI][sS][oO] "${mnt}"/*/*.[iI][sS][oO] "${mnt}"/*/*/*.[iI][sS][oO]; do
+            [ -f "${iso}" ] || continue
+            # shellcheck disable=SC2154 # archisosearchuuid kommt von der Kernel-Kommandozeile
+            if [ "$(blkid -o value -s UUID "${iso}" 2>/dev/null)" = "${archisosearchuuid}" ]; then
+                umount "${mnt}"
+                img_dev="${dev}"
+                img_loop="${iso#"${mnt}"}"
+                return 0
+            fi
+        done
+        umount "${mnt}"
+    done
+    return 1
+}
+
+run_hook() {
+    local i
+
+    # Nichts zu tun, wenn der Bootloader die ISO-Datei schon benannt hat.
+    if [ -n "${img_dev}" ] && [ -n "${img_loop}" ]; then
+        return 0
+    fi
+    [ -n "${archisosearchuuid}" ] || return 0
+
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+        # Normalfall: Das ISO wurde direkt auf den Datenträger geschrieben.
+        if blkid -U "${archisosearchuuid}" >/dev/null 2>&1; then
+            return 0
+        fi
+        if [ "${i}" -ge 3 ] && _isoscan_find; then
+            msg ":: Live-ISO als Datei gefunden: ${img_loop} auf ${img_dev}"
+            img_flags="defaults"
+            export mount_handler="archiso_loop_mount_handler"
+            return 0
+        fi
+        sleep 1
+    done
+}
+
+# vim: set ft=sh:

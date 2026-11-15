@@ -1,0 +1,70 @@
+#!/bin/sh
+# Erzeugt den GRUB-Eintrag für den linux-surface-Kernel samt Devicetree.
+#
+# Snapdragon-Surface-Geräte starten nur mit dem passenden Devicetree; das
+# Standardskript 10_linux von Arch kennt keine "devicetree"-Zeile und ist
+# deshalb deaktiviert. Gerät und Zusatzparameter stehen in
+# /etc/default/surface-boot.
+set -e
+
+. "$pkgdatadir/grub-mkconfig_lib"
+
+SURFACE_KERNEL="linux-surface"
+SURFACE_DTB=""
+SURFACE_CMDLINE=""
+[ -r /etc/default/surface-boot ] && . /etc/default/surface-boot
+
+[ -e "/boot/vmlinuz-${SURFACE_KERNEL}" ] || exit 0
+
+boot_rel="$(make_system_path_relative_to_its_root /boot)"
+boot_dev="$("${grub_probe}" --target=device /boot)"
+
+if [ -n "${GRUB_DEVICE_UUID}" ] && [ "x${GRUB_DISABLE_LINUX_UUID}" != "xtrue" ]; then
+    root_arg="root=UUID=${GRUB_DEVICE_UUID}"
+else
+    root_arg="root=${GRUB_DEVICE}"
+fi
+
+if [ "x${GRUB_FS}" = "xbtrfs" ]; then
+    rootsubvol="$(make_system_path_relative_to_its_root /)"
+    rootsubvol="${rootsubvol#/}"
+    if [ -n "${rootsubvol}" ]; then
+        root_arg="${root_arg} rootflags=subvol=${rootsubvol}"
+    fi
+fi
+
+surface_entry() { # titel id kernel-parameter initramfs
+    echo "menuentry '$1' --class arch --class gnu-linux --class os --id '$2' {"
+    prepare_grub_to_access_device "${boot_dev}" | sed 's/^/\t/'
+    echo "	insmod gzio"
+    echo "	echo 'Lade Kernel ${SURFACE_KERNEL}...'"
+    echo "	linux ${boot_rel}/vmlinuz-${SURFACE_KERNEL} ${root_arg} rw $3"
+    if [ -n "${SURFACE_DTB}" ]; then
+        echo "	devicetree ${boot_rel}/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
+    fi
+    echo "	echo 'Lade Initramfs...'"
+    echo "	initrd ${boot_rel}/$4"
+    echo "}"
+}
+
+gettext_printf "Found linux image: %s\n" "/boot/vmlinuz-${SURFACE_KERNEL}" >&2
+if [ -n "${SURFACE_DTB}" ]; then
+    if [ -e "/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}" ]; then
+        gettext_printf "Found devicetree: %s\n" "${SURFACE_DTB}" >&2
+    else
+        echo "WARNUNG: Devicetree /boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB} fehlt!" >&2
+    fi
+fi
+
+surface_entry "Arch Linux ARM (${SURFACE_KERNEL})" "surface" \
+    "${SURFACE_CMDLINE} ${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}" \
+    "initramfs-${SURFACE_KERNEL}.img"
+
+if [ -e "/boot/initramfs-${SURFACE_KERNEL}-fallback.img" ]; then
+    fallback_initrd="initramfs-${SURFACE_KERNEL}-fallback.img"
+else
+    fallback_initrd="initramfs-${SURFACE_KERNEL}.img"
+fi
+surface_entry "Arch Linux ARM (${SURFACE_KERNEL}, ausführliche Meldungen)" "surface-verbose" \
+    "${SURFACE_CMDLINE} ${GRUB_CMDLINE_LINUX}" \
+    "${fallback_initrd}"

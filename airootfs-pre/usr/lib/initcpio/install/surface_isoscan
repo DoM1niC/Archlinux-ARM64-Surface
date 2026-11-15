@@ -1,0 +1,17 @@
+#!/bin/bash
+
+build() {
+    add_binary blkid
+    add_binary lsblk
+    add_binary losetup
+    add_module exfat
+    add_runscript
+}
+
+help() {
+    cat <<HELPEOF
+Findet das Live-ISO auch dann, wenn es nur als Datei auf einem Datenträger
+liegt (z. B. auf einem Ventoy-Stick) und der Bootloader das dem Kernel nicht
+mitgeteilt hat. Muss in HOOKS nach archiso_loop_mnt stehen.
+HELPEOF
+}

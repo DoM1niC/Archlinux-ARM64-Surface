@@ -1,0 +1,14 @@
+
+  Arch Linux ARM – Live-/Installationssystem für Snapdragon-Surface-Geräte
+  ------------------------------------------------------------------------
+
+  Gerät anzeigen:        surface-device
+  Tastaturbelegung:      loadkeys us   (Standard: siehe /etc/vconsole.conf)
+  WLAN verbinden:        iwctl station wlan0 connect <SSID>
+  Firmware aus Windows:  surface-fw-extract
+  Installieren:          Partition(en) unter /mnt einhängen, dann  surface-install
+                         (Hilfe: surface-install --help)
+
+  Die Windows-Partition vorher unter Windows verkleinern; Secure Boot muss in
+  den Surface-UEFI-Einstellungen ausgeschaltet sein.
+

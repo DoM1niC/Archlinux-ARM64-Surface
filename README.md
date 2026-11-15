@@ -1,0 +1,187 @@
+# Arch Linux ARM64 für Snapdragon-Surface-Geräte
+
+Baut ein bootfähiges Live-/Installations-ISO (aarch64, UEFI) mit
+
+- **Userland** aus [Arch Linux ARM](https://archlinuxarm.org),
+- **Kernel** `linux-surface` aus dem aarch64-Paket-Repository von
+  [linux-surface](https://github.com/linux-surface) (enthält die Devicetrees
+  und Treiber für die Snapdragon-Surfaces),
+- **Firmware** aus `linux-firmware` (Qualcomm, Atheros, …), der Pro-X-Firmware
+  von linux-surface sowie einem Werkzeug, das die gerätespezifische Firmware
+  aus der Windows-Installation des Geräts übernimmt,
+- einem **GRUB-Bootmenü**, das für jedes Gerät den passenden Devicetree lädt,
+- einem **Installer** (`surface-install`), der das System samt Bootloader und
+  Devicetree auf die interne SSD bringt.
+
+## Unterstützte Geräte
+
+| ID          | Gerät                               | SoC       | Devicetree                           |
+|-------------|-------------------------------------|-----------|--------------------------------------|
+| `spx`       | Surface Pro X (SQ1/SQ2)             | SC8180X   | `sc8180x-surface-pro-x.dtb`          |
+| `sp9-5g`    | Surface Pro 9 5G (SQ3)              | SC8280XP  | `sc8280xp-microsoft-arcata.dtb`      |
+| `devkit`    | Windows Dev Kit 2023                | SC8280XP  | `sc8280xp-microsoft-blackrock.dtb`   |
+| `sl7-13`    | Surface Laptop 7 13,8"              | X1E80100  | `x1e80100-microsoft-romulus13.dtb`   |
+| `sl7-15`    | Surface Laptop 7 15"                | X1E80100  | `x1e80100-microsoft-romulus15.dtb`   |
+| `sp11-lcd`  | Surface Pro 11 (LCD, X Plus)        | X1P64100  | `x1p64100-microsoft-denali.dtb`      |
+| `sp11-oled` | Surface Pro 11 (OLED, X Elite)      | X1E80100  | `x1e80100-microsoft-denali-oled.dtb` |
+| `sp12`      | Surface Pro 12" (2025, X Plus)      | X1P42100  | `x1p42100-microsoft-sp12in.dtb`      |
+
+Die Liste steht in [`devices.conf`](devices.conf) und entspricht den
+Devicetrees, die der linux-surface-Kernel mitbringt. Was auf dem jeweiligen
+Gerät schon funktioniert (WLAN, Ton, Kamera, Touch, …), hängt vom Stand des
+Kernels ab – siehe das Wiki und die Issues von linux-surface.
+
+## Bauen
+
+Voraussetzung ist nur **Docker**. Auf einem x86_64-Host wird das aarch64-System
+per Emulation (`binfmt_misc` + qemu-user) erzeugt; fehlt die Registrierung,
+richtet `build.sh` sie über das Image `tonistiigi/binfmt` ein (gilt bis zum
+nächsten Neustart des Hosts).
+
+```sh
+./build.sh            # ISO bauen -> out/archlinux-arm64-surface-<Datum>-aarch64.iso
+./build.sh clean      # Zwischenstände (Docker-Volumes) löschen
+./build.sh shell      # Shell im Build-Container
+```
+
+Einstellungen stehen in [`config.sh`](config.sh) und lassen sich per Umgebung
+überschreiben, z. B. `LIVE_KEYMAP=us ./build.sh`. Die Pakete des Live-Systems
+stehen in [`packages.txt`](packages.txt).
+
+Rauchtest in QEMU (ohne Surface-Hardware, generischer Booteintrag):
+
+```sh
+scripts/test-qemu.sh          # serielle Konsole, beenden mit Strg+A, X
+```
+
+## Auf den USB-Stick bringen
+
+### Ventoy
+
+Die ISO-Datei einfach auf den Ventoy-Stick kopieren und im Ventoy-Menü
+auswählen („Boot in normal mode“). Das Live-System sucht die ISO-Datei beim
+Start selbst auf dem Stick (Initramfs-Hook `surface_isoscan`, Dateisysteme
+exFAT/NTFS/FAT/ext4, bis drei Verzeichnisebenen tief) und bindet sie per
+Loop-Mount ein. Alternativ funktioniert Ventoys „GRUB2 mode“ über die
+mitgelieferte `boot/grub/loopback.cfg`.
+
+Ventoy muss dafür selbst auf dem Gerät starten können (ARM64-UEFI, Secure Boot
+aus). Falls nicht: das ISO direkt auf einen Stick schreiben.
+
+### Direkt schreiben (dd)
+
+```sh
+sudo dd if=out/archlinux-arm64-surface-<Datum>-aarch64.iso of=/dev/sdX bs=4M conv=fsync status=progress
+```
+
+(`/dev/sdX` = der Stick, **nicht** eine Partition. Alle Daten darauf gehen
+verloren.)
+
+## Starten
+
+1. Unter Windows: BitLocker/Geräteverschlüsselung ggf. abschalten oder den
+   Wiederherstellungsschlüssel bereithalten, „Schnellstart“ deaktivieren und
+   die Windows-Partition verkleinern, um Platz für Linux zu schaffen.
+2. Surface-UEFI öffnen (Gerät aus, **Lauter** gedrückt halten, Power drücken):
+   - *Security → Secure Boot*: **ausschalten**,
+   - *Boot configuration*: USB-Start erlauben und nach oben schieben.
+3. Vom Stick starten (Gerät aus, **Leiser** gedrückt halten, Power drücken).
+4. Im Bootmenü das Gerät wählen. Wird das Gerät über die Firmware-Angaben
+   erkannt, ist der passende Eintrag vorausgewählt; diese Erkennung ist nur
+   eine Hilfe – ein falscher Devicetree startet nicht oder ohne Bild.
+
+Das Live-System meldet sich automatisch als `root` an. Tastaturbelegung ist
+`de-latin1` (ändern mit `loadkeys us`).
+
+## Installieren
+
+```sh
+surface-device                      # erkanntes Gerät anzeigen
+iwctl station wlan0 connect <SSID>  # WLAN (oder USB-Ethernet/-Tethering)
+
+# Partitionieren und formatieren (Beispiel: freier Platz hinter Windows)
+cfdisk /dev/nvme0n1
+mkfs.ext4 /dev/nvme0n1pN
+
+mount /dev/nvme0n1pN /mnt
+mount --mkdir /dev/nvme0n1p1 /mnt/efi   # vorhandene EFI-Systempartition
+
+surface-install /mnt
+```
+
+`surface-install`
+
+- installiert `base`, `linux-surface`, `linux-firmware`, GRUB u. a. per `pacstrap`,
+- trägt das linux-surface-Repository in `/etc/pacman.conf` ein (Kernel-Updates
+  kommen danach ganz normal über `pacman -Syu`),
+- richtet ein Initramfs mit allen nötigen Plattformtreibern ein
+  (Hook `surface-qcom`, `/etc/mkinitcpio.conf.d/surface.conf`),
+- übernimmt die gerätespezifische Firmware aus Windows (`surface-fw-extract`),
+- installiert GRUB und erzeugt über `/etc/grub.d/09_surface` einen Eintrag mit
+  dem Devicetree des Geräts (`/etc/default/surface-boot`). `grub-mkconfig`
+  funktioniert danach wie gewohnt.
+
+Partitionieren, Formatieren und Einhängen macht das Skript bewusst nicht
+selbst.
+
+### Firmware
+
+Die DSP- und GPU-Firmware der Geräte ist von Microsoft/Qualcomm signiert und
+nicht frei verteilbar. `surface-fw-extract` liest aus dem Devicetree, welche
+Dateien der Kernel erwartet, sucht sie im Treiberspeicher der
+Windows-Installation (BitLocker-Partitionen werden mit dem
+Wiederherstellungsschlüssel über `cryptsetup` geöffnet) und legt sie unter
+`/usr/lib/firmware` ab:
+
+```sh
+surface-fw-extract --list           # was wird gebraucht, was fehlt?
+surface-fw-extract --root /mnt      # ins Live- und ins installierte System
+```
+
+Ohne diese Dateien startet das System trotzdem, es fehlen dann aber z. B.
+GPU-Beschleunigung, Ton und Akkuanzeige.
+
+Für das **Surface Pro X** ist die Firmware aus
+[linux-surface/aarch64-firmware](https://github.com/linux-surface/aarch64-firmware)
+bereits im ISO enthalten (`WITH_SPX_FIRMWARE=1`). Dafür gibt es keine
+ausdrückliche Weitergabe-Lizenz – das ISO deshalb nicht öffentlich verteilen
+oder mit `WITH_SPX_FIRMWARE=0` bauen.
+
+## Aufbau
+
+```
+build.sh                      Einstieg auf dem Host (Docker, binfmt)
+config.sh                     Einstellungen
+devices.conf                  Geräte, Devicetrees, Kernel-Parameter
+packages.txt                  Pakete des Live-Systems
+scripts/build-in-container.sh eigentlicher Build (pacstrap, SquashFS, GRUB, xorriso)
+scripts/chroot-customize.sh   Anpassungen im aarch64-Root (Initramfs, GRUB-Image)
+scripts/test-qemu.sh          Rauchtest in QEMU
+airootfs-pre/                 Dateien, die vor der Paketinstallation ins Root kommen
+                              (Initramfs-Hooks surface-qcom und surface_isoscan)
+airootfs/                     Overlay des Live-Systems (Werkzeuge, systemd-Units)
+```
+
+Das ISO ist ein Hybrid-Image (ISO9660 + GPT mit FAT-EFI-Systempartition).
+Kernel, Initramfs, Devicetrees und GRUB liegen in der EFI-Partition, das
+Root-Dateisystem als SquashFS (`arch/aarch64/airootfs.sfs`, xz – zstd kann der
+linux-surface-Kernel in SquashFS nicht lesen) im ISO; das Initramfs nutzt die
+Hooks aus `mkinitcpio-archiso`.
+
+## Bekannte Grenzen
+
+- Der Build wurde in QEMU getestet (generischer UEFI/ACPI-Start, direkt als
+  USB-Datenträger und über Ventoy), **nicht auf echter Surface-Hardware**. Devicetrees, Kernel-Parameter und die
+  SMBIOS-Erkennung im Bootmenü folgen den Quellen von linux-surface.
+- Auf den X-Elite/X-Plus-Geräten hängt die USB-C-Steckerorientierung teils an
+  Firmware, die erst nach `surface-fw-extract` vorhanden ist. Wird der Stick
+  beim Start nicht gefunden: Stecker drehen oder einen anderen Anschluss
+  (USB-A, falls vorhanden) verwenden.
+- Surface Pro 11 (LCD/OLED) lässt sich über die Firmware-Angaben nicht sicher
+  unterscheiden und muss im Bootmenü von Hand gewählt werden.
+- Surface Pro X: Sollte das Standard-GRUB nicht starten, liegt das gepatchte
+  GRUB von linux-surface unter `EFI/spx/bootaa64.efi` in der EFI-Partition des
+  Sticks (Menüeintrag oder nach `EFI/BOOT/BOOTAA64.EFI` kopieren).
+- UEFI-Variablen sind unter Linux nicht auf allen Geräten schreibbar. Dann
+  kann `surface-install` GRUB auf Nachfrage als Standard-Bootloader
+  (`EFI/BOOT/BOOTAA64.EFI`, mit Sicherung der vorhandenen Datei) ablegen.

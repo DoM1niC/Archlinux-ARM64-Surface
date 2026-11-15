@@ -1,0 +1,12 @@
+[Unit]
+Description=pacman-Schlüsselbund initialisieren
+ConditionPathExists=!/etc/pacman.d/gnupg/trustdb.gpg
+After=systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/surface-pacman-init
+
+[Install]
+WantedBy=multi-user.target

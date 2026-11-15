@@ -1,0 +1,73 @@
+#!/bin/bash
+# Erkennt das laufende Surface-Gerät anhand des Devicetrees und gibt die
+# zugehörigen Angaben aus devices.conf aus.
+#
+#   surface-device            lesbare Zusammenfassung
+#   surface-device --id       nur die Geräte-ID (z. B. sl7-13)
+#   surface-device --name | --dtb | --args | --compatible
+#   surface-device --list     alle bekannten Geräte
+#   surface-device --lookup ID --dtb     Angaben zu einem bestimmten Gerät
+
+CONF="${SURFACE_DEVICES_CONF:-/usr/share/surface/devices.conf}"
+
+lookup_id=""
+field=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --id|--name|--dtb|--args|--compatible) field="${1#--}" ;;
+        --lookup) lookup_id="$2"; shift ;;
+        --list)
+            grep -vE '^\s*(#|$)' "$CONF" | while IFS='|' read -r id name dtb _; do
+                printf '%-10s %-40s %s\n' "$id" "$name" "$dtb"
+            done
+            exit 0 ;;
+        -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+machine_compat=()
+if [[ -r /proc/device-tree/compatible ]]; then
+    mapfile -d '' -t machine_compat < /proc/device-tree/compatible
+fi
+
+found=0
+while IFS='|' read -r id name dtb args compat _; do
+    [[ "$id" =~ ^[[:space:]]*(#|$) ]] && continue
+    if [[ -n "$lookup_id" ]]; then
+        [[ "$id" == "$lookup_id" ]] || continue
+    else
+        match=0
+        for c in "${machine_compat[@]}"; do
+            [[ "$c" == "$compat" ]] && match=1
+        done
+        (( match )) || continue
+    fi
+    found=1
+    break
+done < "$CONF"
+
+if (( ! found )); then
+    if [[ -z "$field" ]]; then
+        if [[ ${#machine_compat[@]} -gt 0 ]]; then
+            echo "Unbekanntes Gerät (Devicetree: ${machine_compat[*]})"
+        else
+            echo "Kein Devicetree vorhanden (ACPI-Boot, z. B. virtuelle Maschine)"
+        fi
+    fi
+    exit 1
+fi
+
+case "$field" in
+    id)         echo "$id" ;;
+    name)       echo "$name" ;;
+    dtb)        echo "$dtb" ;;
+    args)       echo "$args" ;;
+    compatible) echo "$compat" ;;
+    *)
+        echo "Gerät:       $name ($id)"
+        echo "Devicetree:  qcom/$dtb"
+        echo "Kernel-Args: clk_ignore_unused pd_ignore_unused${args:+ $args}"
+        ;;
+esac
