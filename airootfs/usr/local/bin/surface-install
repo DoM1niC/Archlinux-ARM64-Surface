@@ -152,6 +152,7 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # Laden des Grafiktreibers das Bild stehen.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano iwd wireless-regdb terminus-font
+      bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
       e2fsprogs dosfstools ntfs-3g cryptsetup)
 case "$(findmnt -no FSTYPE "$target")" in
     btrfs) pkgs+=(btrfs-progs) ;;
@@ -160,6 +161,12 @@ esac
 if [[ "$device" == spx ]] && grep -q "^\[surface-local\]" /etc/pacman.conf; then
     pkgs+=(qrtr tqftpserv rmtfs-dummy-git)
 fi
+# Surface Laptop 7: gepatchtes WLAN-Modul (siehe surface-wifi-fix); zum Neubauen
+# nach Kernel-Updates braucht das installierte System Header und Compiler.
+needs_wifi_fix=0
+case "$device" in
+    sl7-*) needs_wifi_fix=1; pkgs+=(linux-surface-headers base-devel git curl) ;;
+esac
 pkgs+=("${extra_pkgs[@]}")
 
 msg "$(t 'Installiere Pakete (pacstrap)' 'Installing packages (pacstrap)')"
@@ -168,7 +175,7 @@ pacstrap "$target" "${pkgs[@]}"
 # Das Preset des Kernelpakets ruft mkinitcpio mit ausdrücklicher Konfigurations-
 # datei auf; Drop-ins unter mkinitcpio.conf.d werden dabei nicht gelesen. Die
 # Hooks müssen deshalb in /etc/mkinitcpio.conf selbst stehen.
-msg "$(t 'Richte Initramfs ein' 'Setting up the initramfs')"
+msg "$(t 'Trage Initramfs-Hooks ein' 'Registering the initramfs hooks')"
 cat >> "$target/etc/mkinitcpio.conf" <<'EOF'
 
 # --- added by surface-install -------------------------------------------------
@@ -179,7 +186,8 @@ cat >> "$target/etc/mkinitcpio.conf" <<'EOF'
 HOOKS=(base udev modconf keyboard keymap consolefont block filesystems fsck surface-qcom)
 EOF
 cp /etc/vconsole.conf "$target/etc/vconsole.conf"
-arch-chroot "$target" mkinitcpio -P
+# Gebaut wird das Initramfs weiter unten, nach der Firmware-Übernahme: Die
+# GPU-Firmware aus Windows muss mit hinein.
 
 if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
     cat >> "$target/etc/pacman.conf" <<EOF
@@ -211,6 +219,28 @@ install -Dm755 -t "$target/usr/local/bin" \
     /usr/local/bin/surface-device /usr/local/bin/surface-fw-extract /usr/local/bin/surface-locale
 install -Dm644 -t "$target/usr/share/surface" "$SHARE/devices.conf" "$SHARE/i18n.sh"
 install -Dm644 /etc/surface/lang "$target/etc/surface/lang"
+install -Dm755 -t "$target/usr/local/bin" /usr/local/bin/surface-wifi-fix /usr/local/bin/surface-bt-addr
+install -Dm644 -t "$target/etc/systemd/system" "$SHARE/target/etc/systemd/system/surface-bt-addr.service"
+arch-chroot "$target" systemctl enable bluetooth.service surface-bt-addr.service
+install -Dm644 -t "$target/usr/share/surface/patches" "$SHARE"/patches/*
+
+if (( needs_wifi_fix )); then
+    msg "$(t 'Richte WLAN-Korrektur für den Surface Laptop 7 ein' 'Setting up the Wi-Fi fix for the Surface Laptop 7')"
+    install -Dm644 "$SHARE/target/etc/pacman.d/hooks/95-surface-wifi-fix.hook" \
+        "$target/etc/pacman.d/hooks/95-surface-wifi-fix.hook"
+    for kdir in "$target"/usr/lib/modules/*/; do
+        k="$(basename "$kdir")"
+        if [[ -e "/usr/lib/modules/$k/updates/ath12k.ko" ]]; then
+            # gleicher Kernel wie im Live-System: fertiges Modul übernehmen
+            install -Dm644 "/usr/lib/modules/$k/updates/ath12k.ko" "$kdir/updates/ath12k.ko"
+            arch-chroot "$target" depmod "$k"
+        else
+            arch-chroot "$target" surface-wifi-fix --kernel "$k" \
+                || warn "$(t 'WLAN-Modul nicht gebaut – später nachholen: surface-wifi-fix' \
+                             'Wi-Fi module not built – catch up later: surface-wifi-fix')"
+        fi
+    done
+fi
 
 # --- Firmware ----------------------------------------------------------------
 if [[ "$device" == spx && -d "$SHARE/firmware" ]]; then
@@ -224,6 +254,9 @@ if (( do_firmware )) && [[ -d /sys/firmware/devicetree/base ]]; then
                   "Firmware incomplete. Without it GPU acceleration, audio or the battery indicator are missing, for example. Catch up later with: surface-fw-extract --root $target")"
 fi
 
+msg "$(t 'Erzeuge Initramfs' 'Building the initramfs')"
+arch-chroot "$target" mkinitcpio -P
+
 # --- Bootloader --------------------------------------------------------------
 msg "$(t 'Richte Bootkonfiguration ein' 'Setting up the boot configuration')"
 cat > "$target/etc/default/surface-boot" <<EOF
@@ -234,7 +267,7 @@ cat > "$target/etc/default/surface-boot" <<EOF
 SURFACE_DTB="$dtb"
 
 # Kernel parameters this device needs
-SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused${dev_args:+ $dev_args}"
+SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0${dev_args:+ $dev_args}"
 EOF
 install -Dm755 "$SHARE/target/etc/grub.d/09_surface" "$target/etc/grub.d/09_surface"
 # Das Standardskript erzeugt Einträge ohne Devicetree – die würden nicht starten.

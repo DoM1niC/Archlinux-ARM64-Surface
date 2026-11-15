@@ -1,0 +1,11 @@
+[Unit]
+Description=Bluetooth-Adresse setzen / set the Bluetooth address (Qualcomm controllers without one)
+After=bluetooth.service
+ConditionPathExists=/usr/bin/btmgmt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/surface-bt-addr
+
+[Install]
+WantedBy=multi-user.target

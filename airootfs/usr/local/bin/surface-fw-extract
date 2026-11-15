@@ -204,4 +204,10 @@ if [[ ${#notfound[@]} -gt 0 ]]; then
     printf '    %s\n' "${notfound[@]}" >&2
     exit 3
 fi
+# Im installierten System gehört die GPU-Firmware ins Initramfs (surface-qcom).
+if (( copied > 0 )) && [[ ! -d /run/archiso && ${#roots[@]} -eq 1 ]] \
+   && [[ -e /usr/lib/initcpio/install/surface-qcom ]]; then
+    msg "$(t 'Erzeuge Initramfs neu...' 'Rebuilding the initramfs...')"
+    mkinitcpio -P >/dev/null 2>&1 || warn "$(t 'mkinitcpio -P ist fehlgeschlagen.' 'mkinitcpio -P failed.')"
+fi
 echo "    $(t 'Die Firmware wird beim nächsten Start geladen.' 'The firmware is loaded on the next boot.')"

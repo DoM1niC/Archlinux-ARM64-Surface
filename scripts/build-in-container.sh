@@ -157,6 +157,45 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Gepatchtes WLAN-Modul für den Surface Laptop 7 (siehe surface-wifi-fix)
+# ---------------------------------------------------------------------------
+build_wifi_module() {
+    [[ "$WITH_SL7_WIFI_FIX" == 1 ]] || return 0
+
+    local ver patchsum
+    mkdir -p "$BUILD/pacdb"
+    pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Sy >/dev/null
+    ver="$(pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Si linux-surface \
+            | awk '/^Version/ {print $3; exit}')"
+    [[ -n "$ver" ]] || die "Version von linux-surface nicht ermittelbar."
+    patchsum="$(sha256sum "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch" | cut -c1-12)"
+    KERNEL_RELEASE="${ver}-surface"
+    WIFI_MODULE="$BUILD/modcache/ath12k-${ver}-${patchsum}.ko"
+
+    if [[ -s "$WIFI_MODULE" ]]; then
+        msg "Gepatchtes ath12k-Modul für $KERNEL_RELEASE ist bereits gebaut."
+        return 0
+    fi
+
+    msg "Baue gepatchtes ath12k-Modul für $KERNEL_RELEASE..."
+    umount_below "$PKGROOT"
+    rm -rf "$PKGROOT"
+    mkdir -p "$PKGROOT" "$BUILD/modcache"
+    mount --bind "$PKGROOT" "$PKGROOT"
+    pacstrap -c -G -M -C "$PACCONF" "$PKGROOT" base base-devel git curl linux-surface-headers >/dev/null
+
+    install -Dm755 "$PROJECT/airootfs/usr/local/bin/surface-wifi-fix" "$PKGROOT/usr/local/bin/surface-wifi-fix"
+    install -Dm644 "$PROJECT/airootfs/usr/share/surface/i18n.sh" "$PKGROOT/usr/share/surface/i18n.sh"
+    install -Dm644 "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch" \
+        "$PKGROOT/usr/share/surface/patches/ath12k-sl7-rfkill.patch"
+    arch-chroot "$PKGROOT" bash -c "ldconfig; surface-wifi-fix --kernel '$KERNEL_RELEASE'"
+    cp "$PKGROOT/usr/lib/modules/$KERNEL_RELEASE/updates/ath12k.ko" "$WIFI_MODULE"
+
+    umount_below "$PKGROOT"
+    rm -rf "$PKGROOT"
+}
+
+# ---------------------------------------------------------------------------
 # Live-Root
 # ---------------------------------------------------------------------------
 build_rootfs() {
@@ -223,6 +262,12 @@ build_rootfs() {
         done < <(cd "$ROOTFS/usr/share/surface/firmware" && find . \( -type f -o -type l \) -print0)
     fi
 
+    if [[ "$WITH_SL7_WIFI_FIX" == 1 ]]; then
+        [[ -d "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE" ]] \
+            || die "Kernel im Live-Root passt nicht zum gebauten WLAN-Modul ($KERNEL_RELEASE)."
+        install -Dm644 "$WIFI_MODULE" "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/updates/ath12k.ko"
+    fi
+
     msg2 "Passe System an (chroot)..."
     install -m755 "$PROJECT/scripts/chroot-customize.sh" "$ROOTFS/root/customize.sh"
     cat > "$ROOTFS/root/embedded.cfg" <<EOF
@@ -266,7 +311,7 @@ EOF
 # ---------------------------------------------------------------------------
 write_grub_cfg() { # zieldatei
     local id name dtb args compat product sku
-    local base="archisobasedir=arch cow_spacesize=50% clk_ignore_unused pd_ignore_unused"
+    local base="archisobasedir=arch cow_spacesize=50% clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0"
 
     {
         cat <<EOF
@@ -526,5 +571,6 @@ ISO_UUID="$(date -u -d "@$SOURCE_DATE_EPOCH" +%F-%H-%M-%S-00)"
 
 setup_pacman
 build_qcom_packages
+build_wifi_module
 build_rootfs
 build_iso

@@ -39,7 +39,7 @@ fi
 # --- Dienste -----------------------------------------------------------------
 systemctl enable systemd-networkd.service systemd-resolved.service \
     systemd-timesyncd.service iwd.service pacman-init.service \
-    surface-locale.service >/dev/null
+    surface-locale.service bluetooth.service surface-bt-addr.service >/dev/null
 if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
     systemctl enable tqftpserv.service rmtfs.service >/dev/null
 fi

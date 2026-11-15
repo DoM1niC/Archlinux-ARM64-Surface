@@ -37,9 +37,10 @@ shipped with the linux-surface kernel.
 ### Hardware support
 
 The table shows which hardware the linux-surface kernel (7.3.1) describes in
-each device's devicetree. It was read from the kernel sources and **not tested
-on hardware**: "✓" means "a driver is wired up", not "guaranteed to work". For
-the actual state see the linux-surface wiki and issues.
+each device's devicetree. Except for the Surface Laptop 7 13.8" column it was
+read from the kernel sources and **not tested on hardware**: "✓" means "a
+driver is wired up", not "guaranteed to work". For the actual state see the
+linux-surface wiki and issues.
 
 | Feature | Pro X (SQ1/SQ2) | Pro 9 5G | Dev Kit 2023 | Laptop 7 (13.8"/15") | Pro 11 (LCD/OLED) | Pro 12" |
 |---|---|---|---|---|---|---|
@@ -48,10 +49,11 @@ the actual state see the linux-surface wiki and issues.
 | Internal storage | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
 | USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | External monitor over USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Wi-Fi | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850) | ✓ (WCN7850) | ✓ (WCN7850) |
+| Wi-Fi | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850, patched module) | ✓ (WCN7850) | ✓ (WCN7850) |
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Audio | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
-| Keyboard/touchpad, battery (Surface Aggregator) | ✓ | ✓ | – (USB devices) | ✓ | ✓ | ✓ |
+| Keyboard, battery (Surface Aggregator) | ✓ | ✓ | – (USB devices) | ✓ | ✓ | ✓ |
+| Touchpad | ? | ? | – | – | ? | ? |
 | Touchscreen | – | – | – | – | – | ✓ |
 | Cameras | – | – | – | – | – | – |
 | Cellular (LTE/5G) | – | – | – | – | – | – |
@@ -61,7 +63,24 @@ the actual state see the linux-surface wiki and issues.
   (`surface-fw-extract`, see below). For the Pro X it is already in the ISO.
 - **–**: not described in the devicetree, so currently without function.
 
-Pen and fingerprint reader/Windows Hello were not checked individually. On the
+**Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
+boot through Ventoy, installation, display, keyboard, NVMe, USB, GNOME, the
+firmware taken from Windows (ADSP/CDSP start), Wi-Fi with the patched module
+(scan), and Bluetooth (after `surface-bt-addr` gave the controller an address)
+work. The **touchpad does not work**: it is a HID-over-QSPI device, and
+this kernel has neither the devicetree node nor QSPI support in
+`spi-geni-qcom`. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
+the devicetree describes 12 cores; that is harmless. Audio works as well; the boot
+takes about 5 s. GPU acceleration and battery reporting were not verified.
+
+**Wi-Fi on the Surface Laptop 7:** the WCN7850's rfkill input permanently
+reads "radio off" and ath12k hard-blocks the radio. The ISO therefore ships a
+patched `ath12k` module ([patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch));
+`surface-install` installs it together with a pacman hook that rebuilds it
+after kernel updates (`surface-wifi-fix`, needs network access at that time).
+
+"?" for the touchpad means: not checked. Pen and fingerprint reader/Windows
+Hello were not checked individually. On the
 Pro X, Wi-Fi only works with the helper services `tqftpserv` and `rmtfs`; they
 are included in the ISO and set up by the installer.
 
@@ -217,8 +236,9 @@ from `mkinitcpio-archiso`.
 
 - The build was tested in QEMU (generic UEFI/ACPI boot, directly as a USB
   drive and through Ventoy), **not on real Surface hardware**. Devicetrees and
-  kernel parameters follow the linux-surface sources; the device detection in
-  the boot menu (SMBIOS names) is only an assumption.
+  kernel parameters follow the linux-surface sources. Only the Surface Laptop 7
+  13.8" has been run on real hardware (see "Hardware support"); for the other
+  devices the detection in the boot menu (SMBIOS names) is an assumption.
 - On the X Elite/X Plus devices, USB-C plug orientation partly depends on
   firmware that is only present after `surface-fw-extract`. If the drive is
   not found at boot: flip the plug or use another port (USB-A, if available).

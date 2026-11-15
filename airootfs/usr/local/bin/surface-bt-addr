@@ -1,0 +1,37 @@
+#!/bin/bash
+# Gibt dem Bluetooth-Controller eine feste Adresse, falls er keine hat.
+# Gives the Bluetooth controller a stable address if it has none.
+#
+# Die Qualcomm-Controller (WCN6855/WCN7850) dieser Geräte bekommen ihre Adresse
+# unter Windows aus der Firmware-Konfiguration; unter Linux bleiben sie ohne
+# Adresse "unkonfiguriert" und tauchen in BlueZ gar nicht erst auf. Die Adresse
+# wird aus /etc/machine-id abgeleitet und ist damit über Neustarts stabil;
+# eine eigene lässt sich in /etc/surface/bt-addr hinterlegen.
+set -u
+
+addr="$(cat /etc/surface/bt-addr 2>/dev/null || true)"
+if [[ -z "$addr" ]]; then
+    h="$(sha256sum /etc/machine-id | cut -c1-12)"
+    # lokal verwaltete Unicast-Adresse
+    addr="$(printf '%02X' $(( (0x${h:0:2} & 0xFE) | 0x02 ))):${h:2:2}:${h:4:2}:${h:6:2}:${h:8:2}:${h:10:2}"
+    addr="${addr^^}"
+fi
+
+# Der Controller erscheint erst, nachdem seine Firmware geladen ist (einige
+# Sekunden nach dem Start); bis dahin kennt die Verwaltungsschnittstelle ihn
+# nicht ("Invalid Index"). Deshalb wiederholt versuchen.
+for _ in $(seq 1 45); do
+    if [[ -e /sys/class/bluetooth/hci0 ]]; then
+        # Hat der Controller schon eine Adresse, ist nichts zu tun.
+        if timeout 10 btmgmt --index 0 info </dev/null 2>/dev/null | grep -q 'addr [0-9A-F:]\{17\}'; then
+            exit 0
+        fi
+        if timeout 10 btmgmt --index 0 public-addr "$addr" </dev/null 2>&1 | grep -q 'complete'; then
+            echo "Bluetooth address set to $addr"
+            exit 0
+        fi
+    fi
+    sleep 1
+done
+echo "Bluetooth controller did not become ready" >&2
+exit 0

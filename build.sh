@@ -69,7 +69,7 @@ run=(docker run --rm --privileged
 # Konfigurations-Overrides aus der Umgebung durchreichen
 for v in ISO_NAME ISO_LABEL ALARM_MIRROR SURFACE_REPO LIVE_LANG LIVE_KEYMAP LIVE_FONT \
          LIVE_TIMEZONE LIVE_HOSTNAME WITH_SPX_FIRMWARE WITH_QCOM_USERSPACE \
-         WITH_SPX_GRUB REBUILD; do
+         WITH_SPX_GRUB WITH_SL7_WIFI_FIX REBUILD; do
     [[ -v $v ]] && run+=(-e "$v=${!v}")
 done
 

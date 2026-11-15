@@ -34,10 +34,11 @@ Devicetrees, die der linux-surface-Kernel mitbringt.
 ### Hardware-Unterstützung
 
 Die Tabelle zeigt, welche Hardware der linux-surface-Kernel (7.3.1) im
-Devicetree des jeweiligen Geräts beschreibt. Sie ist aus den Kernel-Quellen
-abgelesen, **nicht auf Hardware getestet**: „✓“ heißt „Treiber ist
-vorgesehen“, nicht „funktioniert garantiert“. Den tatsächlichen Stand zeigen
-das Wiki und die Issues von linux-surface.
+Devicetree des jeweiligen Geräts beschreibt. Bis auf die Spalte Surface
+Laptop 7 13,8" ist sie aus den Kernel-Quellen abgelesen und **nicht auf
+Hardware getestet**: „✓“ heißt „Treiber ist vorgesehen“, nicht „funktioniert
+garantiert“. Den tatsächlichen Stand zeigen das Wiki und die Issues von
+linux-surface.
 
 | Funktion | Pro X (SQ1/SQ2) | Pro 9 5G | Dev Kit 2023 | Laptop 7 (13,8"/15") | Pro 11 (LCD/OLED) | Pro 12" |
 |---|---|---|---|---|---|---|
@@ -46,10 +47,11 @@ das Wiki und die Issues von linux-surface.
 | Interner Speicher | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
 | USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Externer Monitor über USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
-| WLAN | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850) | ✓ (WCN7850) | ✓ (WCN7850) |
+| WLAN | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850, gepatchtes Modul) | ✓ (WCN7850) | ✓ (WCN7850) |
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Ton | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
-| Tastatur/Touchpad, Akku (Surface Aggregator) | ✓ | ✓ | – (USB-Geräte) | ✓ | ✓ | ✓ |
+| Tastatur, Akku (Surface Aggregator) | ✓ | ✓ | – (USB-Geräte) | ✓ | ✓ | ✓ |
+| Touchpad | ? | ? | – | – | ? | ? |
 | Touchscreen | – | – | – | – | – | ✓ |
 | Kameras | – | – | – | – | – | – |
 | Mobilfunk (LTE/5G) | – | – | – | – | – | – |
@@ -60,7 +62,26 @@ das Wiki und die Issues von linux-surface.
 - **–**: im Devicetree nicht beschrieben, also nach aktuellem Stand ohne
   Funktion.
 
-Stift und Fingerabdruckleser/Windows Hello sind nicht einzeln geprüft. Beim
+**Getestet auf einem Surface Laptop 7 13,8"** (X Plus, Modell 2036, Kernel
+7.3.1): Start über Ventoy, Installation, Display, Tastatur, NVMe, USB, GNOME,
+die aus Windows übernommene Firmware (ADSP/CDSP starten), WLAN mit dem
+gepatchten Modul (Scan) und Bluetooth (nachdem `surface-bt-addr` dem
+Controller eine Adresse gegeben hat) funktionieren. Das **Touchpad
+funktioniert nicht**: Es ist ein HID-over-QSPI-Gerät, und diesem Kernel fehlen
+sowohl der Devicetree-Knoten als auch die QSPI-Unterstützung in
+`spi-geni-qcom`. Die 10-Kern-Variante (X Plus) meldet `CPU7`/`CPU11 failed to
+boot`, weil der Devicetree 12 Kerne beschreibt; das ist harmlos.
+Ton funktioniert ebenfalls; der Start dauert etwa 5 s. GPU-Beschleunigung
+und Akkuanzeige sind nicht überprüft.
+
+**WLAN auf dem Surface Laptop 7:** Der rfkill-Eingang des WCN7850 meldet
+dauerhaft „Funk aus“, ath12k sperrt das WLAN dann hart. Das ISO bringt deshalb
+ein gepatchtes `ath12k`-Modul mit ([Patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch));
+`surface-install` installiert es zusammen mit einem pacman-Hook, der es nach
+Kernel-Updates neu baut (`surface-wifi-fix`, braucht dann Netzzugang).
+
+„?“ beim Touchpad heißt: nicht geprüft. Stift und Fingerabdruckleser/Windows
+Hello sind nicht einzeln geprüft. Beim
 Pro X läuft das WLAN nur mit den Zusatzdiensten `tqftpserv` und `rmtfs`; sie
 sind im ISO enthalten und werden vom Installer mit eingerichtet.
 
@@ -218,8 +239,10 @@ Hooks aus `mkinitcpio-archiso`.
 
 - Der Build wurde in QEMU getestet (generischer UEFI/ACPI-Start, direkt als
   USB-Datenträger und über Ventoy), **nicht auf echter Surface-Hardware**.
-  Devicetrees und Kernel-Parameter folgen den Quellen von linux-surface; die
-  Geräteerkennung im Bootmenü (SMBIOS-Namen) ist nur eine Annahme.
+  Devicetrees und Kernel-Parameter folgen den Quellen von linux-surface. Auf
+  echter Hardware lief bisher nur der Surface Laptop 7 13,8" (siehe
+  „Hardware-Unterstützung“); für die anderen Geräte ist die Erkennung im
+  Bootmenü (SMBIOS-Namen) eine Annahme.
 - Auf den X-Elite/X-Plus-Geräten hängt die USB-C-Steckerorientierung teils an
   Firmware, die erst nach `surface-fw-extract` vorhanden ist. Wird der Stick
   beim Start nicht gefunden: Stecker drehen oder einen anderen Anschluss

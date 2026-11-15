@@ -89,6 +89,6 @@ case "$field" in
     *)
         echo "$(t 'Gerät:      ' 'Device:     ') $name ($id)"
         echo "Devicetree:  qcom/$dtb"
-        echo "Kernel-Args: clk_ignore_unused pd_ignore_unused${args:+ $args}"
+        echo "Kernel-Args: clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0${args:+ $args}"
         ;;
 esac

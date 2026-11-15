@@ -46,6 +46,11 @@ QCOM_PACKAGES=(qmic qrtr tqftpserv rmtfs-dummy)
 WITH_SPX_GRUB="${WITH_SPX_GRUB:-1}"
 SPX_GRUB_URL="https://github.com/linux-surface/grub-image-aarch64/releases/download/fedora-39-1/bootaa64.efi"
 
+# --- Surface Laptop 7 --------------------------------------------------------
+# Gepatchtes WLAN-Modul (ath12k ohne rfkill-Abfrage) für den Kernel des ISOs
+# vorab bauen; ohne es ist das WLAN des Laptop 7 hart gesperrt.
+WITH_SL7_WIFI_FIX="${WITH_SL7_WIFI_FIX:-1}"
+
 # --- Kompression -------------------------------------------------------------
 # Der linux-surface-Kernel kann SquashFS nur mit xz, lz4, lzo oder zlib lesen (kein zstd).
 SQUASHFS_OPTS=(-comp xz -b 1M -Xdict-size 100%)
