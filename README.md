@@ -2,6 +2,15 @@
 
 **English** | [Deutsch](README.de.md)
 
+> ## ⬇️ Download
+>
+> **[Download the ready-made ISO](https://drive.3dns.eu/dl/131617b07bbc33190decce1ac3b562aa?path=archlinux)**
+> (about 0.8 GB)
+>
+> Copy it onto a [Ventoy](https://github.com/ventoy/Ventoy) drive or write it
+> to a USB drive with `dd`, then continue with [Booting](#booting). You can
+> also [build the ISO yourself](#building) with a single command.
+
 Builds a bootable live/installation ISO (aarch64, UEFI) with
 
 - **userland** from [Arch Linux ARM](https://archlinuxarm.org),
