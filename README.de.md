@@ -114,7 +114,9 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Treiber sind bereits im Kernel. Programme nutzen sie über den Software-ISP
   von libcamera, z. B. per PipeWire in Browsern und Videotelefonie.
   `surface-install` legt dazu eine udev-Regel an, damit der angemeldete
-  Benutzer die dma-buf-Heaps nutzen darf, die der Software-ISP braucht, und
+  Benutzer den System-dma-buf-Heap nutzen darf, den der Software-ISP braucht
+  (bewusst nicht den kleinen CMA-Heap, den libcamera sonst bevorzugt und
+  schnell erschöpft), und
   eine WirePlumber-Regel, die die rohen CAMSS-Videoknoten ausblendet; so
   sehen Programme eine Kamera statt sechzehn. Bei wenig
   Licht sind die Bilder noch dunkel und die Belichtung regelt langsam nach:

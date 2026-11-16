@@ -113,7 +113,8 @@ provide yet; the ISO and `surface-install` set them up automatically:
   the drivers are already in the kernel. Applications use it through
   libcamera's software ISP, e.g. via PipeWire in browsers and video calls.
   `surface-install` adds a udev rule so that the logged-in user may use the
-  dma-buf heaps the software ISP needs, and a WirePlumber rule that hides
+  system dma-buf heap the software ISP needs (deliberately not the small CMA
+  heap, which libcamera would otherwise prefer and run out of), and a WirePlumber rule that hides
   the raw CAMSS video nodes, so apps see one camera instead of sixteen.
   Images are still dark in dim light and the auto exposure settles slowly:
   libcamera 0.7.2 has no tuning for this sensor yet. The IR camera
