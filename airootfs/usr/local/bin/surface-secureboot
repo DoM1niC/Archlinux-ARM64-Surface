@@ -118,6 +118,7 @@ default arch-linux-surface.efi
 timeout 3
 console-mode keep
 editor no
+auto-firmware yes
 EOF
     # GRUB als Ausweich-Eintrag (startet nur ohne Secure Boot)
     if [[ -e "$esp/EFI/arch/grubaa64.efi" && ! -e "$esp/loader/entries/zz-grub.conf" ]]; then
