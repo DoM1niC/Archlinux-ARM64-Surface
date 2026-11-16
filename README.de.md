@@ -68,7 +68,9 @@ die aus Windows übernommene Firmware (ADSP/CDSP starten), WLAN, Bluetooth, Ton,
 Touchpad, Touchscreen und Tastaturbeleuchtung funktionieren; der Start dauert etwa 5 s. Die
 10-Kern-Variante (X Plus) meldet
 `CPU7`/`CPU11 failed to boot`, weil der Devicetree 12 Kerne beschreibt; das
-ist harmlos. GPU-Beschleunigung, Akkuanzeige und Standby sind nicht überprüft.
+ist harmlos. GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6),
+Bildschirmhelligkeit und Akkuanzeige funktionieren ebenfalls. Standby ist
+nicht überprüft.
 Kameras sind im Devicetree nicht beschrieben und funktionieren nicht.
 
 Der Surface Laptop 7 braucht einige Dinge, die der linux-surface-Kernel noch

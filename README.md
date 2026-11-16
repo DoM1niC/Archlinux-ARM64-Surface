@@ -67,8 +67,9 @@ linux-surface wiki and issues.
 boot through Ventoy, installation, display, keyboard, NVMe, USB, GNOME, the
 firmware taken from Windows (ADSP/CDSP start), Wi-Fi, Bluetooth, audio, the
 touchpad, the touchscreen and the keyboard backlight work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
-the devicetree describes 12 cores; that is harmless. GPU acceleration, battery
-reporting and suspend were not verified. Cameras are not described in the
+the devicetree describes 12 cores; that is harmless. GPU acceleration
+(freedreno, Adreno X1-85, OpenGL 4.6), screen brightness and battery reporting
+work as well. Suspend was not verified. Cameras are not described in the
 devicetree and do not work.
 
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
