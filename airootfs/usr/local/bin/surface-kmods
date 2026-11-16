@@ -11,6 +11,8 @@
 # touchpad  QSPI-Modus für spi-geni-qcom (als zweiter Treiber), QSPI-Protokoll
 #           im GPI-DMA-Treiber und der passende spi-hid-Treiber, alle aus dem
 #           ELLX-Kernel (siehe /usr/share/surface/kmods/sl7-touchpad/README).
+# kbd       Tastaturbeleuchtung als LED-Gerät (surface::kbd_backlight), damit
+#           der Desktop sie anzeigen und einstellen kann.
 #
 # Module unter updates/ haben Vorrang vor denen des Kernelpakets. Nach einem
 # Kernel-Update müssen sie neu gebaut werden; das erledigt der pacman-Hook
@@ -23,24 +25,27 @@ source /usr/share/surface/i18n.sh
 SHARE=/usr/share/surface
 PATCH="$SHARE/patches/ath12k-sl7-rfkill.patch"
 TOUCHPAD_SRC="$SHARE/kmods/sl7-touchpad"
+KBD_SRC="$SHARE/kmods/sl7-kbd-backlight"
 KERNEL_REPO="https://github.com/linux-surface/kernel.git"
 KERNEL_RAW="https://raw.githubusercontent.com/linux-surface/kernel"
 PKGBUILD_URL="https://raw.githubusercontent.com/linux-surface/aarch64-packages/linux_surface-%s/linux-surface/PKGBUILD"
 
 WIFI_MODULES=(ath12k.ko)
 TOUCHPAD_MODULES=(gpi.ko spi-geni-qspi.ko spi-hid.ko)
+KBD_MODULES=(hid-surface-kbd-backlight.ko)
 
 usage() {
     if [[ "$SURFACE_LANG" == en ]]; then
         cat <<'USAGE'
 Builds the extra kernel modules the Surface Laptop 7 needs (Wi-Fi: patched
-ath12k; touchpad: QSPI, GPI DMA and spi-hid drivers) and installs them to
+ath12k; touchpad/touchscreen: QSPI, GPI DMA and spi-hid drivers; keyboard
+backlight LED) and installs them to
 /usr/lib/modules/<kernel>/updates/.
 
   surface-kmods                 for the running kernel
   surface-kmods --all           for all installed kernels lacking the modules
   surface-kmods --kernel K      for kernel release K (e.g. 7.3.1-1-surface)
-  surface-kmods --only wifi|touchpad   build just one set
+  surface-kmods --only wifi|touchpad|kbd   build just one set
   surface-kmods --force         rebuild even if the modules are already there
   surface-kmods --remove        remove the modules again
 
@@ -49,13 +54,14 @@ USAGE
     else
         cat <<'USAGE'
 Baut die Zusatzmodule, die der Surface Laptop 7 braucht (WLAN: gepatchtes
-ath12k; Touchpad: QSPI-, GPI-DMA- und spi-hid-Treiber) und installiert sie
+ath12k; Touchpad/Touchscreen: QSPI-, GPI-DMA- und spi-hid-Treiber;
+Tastaturbeleuchtung als LED) und installiert sie
 nach /usr/lib/modules/<Kernel>/updates/.
 
   surface-kmods                 für den laufenden Kernel
   surface-kmods --all           für alle installierten Kernel ohne die Module
   surface-kmods --kernel K      für die Kernel-Version K (z. B. 7.3.1-1-surface)
-  surface-kmods --only wifi|touchpad   nur einen Satz bauen
+  surface-kmods --only wifi|touchpad|kbd   nur einen Satz bauen
   surface-kmods --force         auch bauen, wenn die Module schon da sind
   surface-kmods --remove        die Module wieder entfernen
 
@@ -85,7 +91,7 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-case "$only" in ""|wifi|touchpad) ;; *) die "--only: wifi | touchpad" ;; esac
+case "$only" in ""|wifi|touchpad|kbd) ;; *) die "--only: wifi | touchpad | kbd" ;; esac
 
 (( EUID == 0 )) || die "$(t 'Bitte als root ausführen.' 'Please run as root.')"
 
@@ -98,8 +104,9 @@ fi
 [[ ${#kernels[@]} -gt 0 ]] || kernels=("$(uname -r)")
 
 wanted_modules=()
-[[ "$only" != touchpad ]] && wanted_modules+=("${WIFI_MODULES[@]}")
-[[ "$only" != wifi ]]     && wanted_modules+=("${TOUCHPAD_MODULES[@]}")
+[[ -z "$only" || "$only" == wifi ]]     && wanted_modules+=("${WIFI_MODULES[@]}")
+[[ -z "$only" || "$only" == touchpad ]] && wanted_modules+=("${TOUCHPAD_MODULES[@]}")
+[[ -z "$only" || "$only" == kbd ]]      && wanted_modules+=("${KBD_MODULES[@]}")
 
 if (( remove )); then
     for k in "${kernels[@]}"; do
@@ -121,11 +128,12 @@ have_all() { # kernel modul...
 
 build_for() { # kernel-release
     local k="$1" moddir="/usr/lib/modules/$1" pkgver ref tmp src m
-    local do_wifi=0 do_touchpad=0
+    local do_wifi=0 do_touchpad=0 do_kbd=0
 
-    [[ "$only" != touchpad ]] && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
-    [[ "$only" != wifi ]] && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1
-    if (( ! do_wifi && ! do_touchpad )); then
+    [[ -z "$only" || "$only" == wifi ]] && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
+    [[ -z "$only" || "$only" == touchpad ]] && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1
+    [[ -z "$only" || "$only" == kbd ]] && { (( force )) || ! have_all "$k" "${KBD_MODULES[@]}"; } && do_kbd=1
+    if (( ! do_wifi && ! do_touchpad && ! do_kbd )); then
         msg "$k: $(t 'Zusatzmodule sind schon vorhanden' 'extra modules already present')"
         return 0
     fi
@@ -136,21 +144,27 @@ build_for() { # kernel-release
     }
     local tool
     for tool in gcc make git patch curl; do
+        # ohne WLAN-/Touchpad-Module reichen Compiler und make
+        (( do_wifi || do_touchpad )) || [[ "$tool" == gcc || "$tool" == make ]] || continue
         command -v "$tool" >/dev/null || {
             warn "$(t 'Es fehlt' 'Missing'): $tool  (pacman -S --needed base-devel git curl)"
             return 1
         }
     done
 
-    # Paketversion -> Kernel-Commit (steht im PKGBUILD des passenden Tags)
-    pkgver="${k%-surface}"
-    # shellcheck disable=SC2059
-    ref="$(curl -fsSL --retry 3 "$(printf "$PKGBUILD_URL" "$pkgver")" \
-            | sed -n 's/^_ref_ksource="\(.*\)"/\1/p')" || true
-    [[ -n "$ref" ]] || {
-        warn "$k: $(t 'Kernel-Quellstand nicht gefunden (kein Netz?).' 'kernel source revision not found (no network?).')"
-        return 1
-    }
+    # Paketversion -> Kernel-Commit (steht im PKGBUILD des passenden Tags);
+    # nur für die Module nötig, die Kernel-Quellen brauchen.
+    ref=""
+    if (( do_wifi || do_touchpad )); then
+        pkgver="${k%-surface}"
+        # shellcheck disable=SC2059
+        ref="$(curl -fsSL --retry 3 "$(printf "$PKGBUILD_URL" "$pkgver")" \
+                | sed -n 's/^_ref_ksource="\(.*\)"/\1/p')" || true
+        [[ -n "$ref" ]] || {
+            warn "$k: $(t 'Kernel-Quellstand nicht gefunden (kein Netz?).' 'kernel source revision not found (no network?).')"
+            return 1
+        }
+    fi
 
     tmp="$(mktemp -d /var/tmp/surface-kmods.XXXXXX)"
     # shellcheck disable=SC2064
@@ -206,6 +220,19 @@ build_for() { # kernel-release
             fi
         else
             warn "$k: $(t 'Kernel-Header für die Touchpad-Module nicht abrufbar.' 'could not fetch the kernel headers for the touchpad modules.')"
+            rc=1
+        fi
+    fi
+
+    if (( do_kbd )); then
+        msg "$k: $(t 'baue Modul für die Tastaturbeleuchtung' 'building the keyboard backlight module')"
+        cp -r "$KBD_SRC" "$tmp/kbd"
+        if make -s -j"$(nproc)" -C "$moddir/build" M="$tmp/kbd" modules >"$tmp/kbd.log" 2>&1; then
+            install -Dm644 "$tmp/kbd/hid-surface-kbd-backlight.ko" "$moddir/updates/hid-surface-kbd-backlight.ko"
+            msg "$k: $(t 'Modul für die Tastaturbeleuchtung installiert' 'keyboard backlight module installed')"
+        else
+            grep -E 'error|Error' "$tmp/kbd.log" | tail -n 15 >&2 || true
+            warn "$k: $(t 'Tastaturbeleuchtung: Bau fehlgeschlagen.' 'keyboard backlight: build failed.')"
             rc=1
         fi
     fi

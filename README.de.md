@@ -65,13 +65,13 @@ linux-surface.
 **Getestet auf einem Surface Laptop 7 13,8"** (X Plus, Modell 2036, Kernel
 7.3.1): Start über Ventoy, Installation, Display, Tastatur, NVMe, USB, GNOME,
 die aus Windows übernommene Firmware (ADSP/CDSP starten), WLAN, Bluetooth, Ton,
-Touchpad und Touchscreen funktionieren; der Start dauert etwa 5 s. Die
+Touchpad, Touchscreen und Tastaturbeleuchtung funktionieren; der Start dauert etwa 5 s. Die
 10-Kern-Variante (X Plus) meldet
 `CPU7`/`CPU11 failed to boot`, weil der Devicetree 12 Kerne beschreibt; das
 ist harmlos. GPU-Beschleunigung, Akkuanzeige und Standby sind nicht überprüft.
 Kameras sind im Devicetree nicht beschrieben und funktionieren nicht.
 
-Der Surface Laptop 7 braucht drei Dinge, die der linux-surface-Kernel noch
+Der Surface Laptop 7 braucht einige Dinge, die der linux-surface-Kernel noch
 nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
 
 - **WLAN:** Der rfkill-Eingang des WCN7850 meldet dauerhaft „Funk aus“, ath12k
@@ -89,6 +89,11 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   und `iptsd` macht aus den Rohdaten Eingabeereignisse.
 - **Bluetooth:** Der Controller hat unter Linux keine Adresse und taucht in
   BlueZ nicht auf; `surface-bt-addr` vergibt beim Start eine feste.
+- **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
+  (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
+  stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit
+  (Stufen 0–12), damit der Desktop sie anzeigen und einstellen kann
+  ([Quelle](airootfs/usr/share/surface/kmods/sl7-kbd-backlight)).
 
 Die Zusatzmodule liegen unter `/usr/lib/modules/<Kernel>/updates/` und werden
 von `surface-kmods` gebaut. Ein pacman-Hook baut sie und den Devicetree nach

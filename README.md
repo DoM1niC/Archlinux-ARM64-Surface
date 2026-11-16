@@ -66,12 +66,12 @@ linux-surface wiki and issues.
 **Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
 boot through Ventoy, installation, display, keyboard, NVMe, USB, GNOME, the
 firmware taken from Windows (ADSP/CDSP start), Wi-Fi, Bluetooth, audio, the
-touchpad and the touchscreen work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
+touchpad, the touchscreen and the keyboard backlight work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
 the devicetree describes 12 cores; that is harmless. GPU acceleration, battery
 reporting and suspend were not verified. Cameras are not described in the
 devicetree and do not work.
 
-The Surface Laptop 7 needs three things the linux-surface kernel does not
+The Surface Laptop 7 needs a few things the linux-surface kernel does not
 provide yet; the ISO and `surface-install` set them up automatically:
 
 - **Wi-Fi:** the WCN7850's rfkill input permanently reads "radio off" and
@@ -89,6 +89,11 @@ provide yet; the ISO and `surface-install` set them up automatically:
   and `iptsd` turns the raw reports into input events.
 - **Bluetooth:** the controller has no address under Linux and does not show
   up in BlueZ; `surface-bt-addr` assigns a stable one at boot.
+- **Keyboard backlight:** the backlight key works on its own (the firmware
+  steps through its levels). A small HID driver additionally exposes it as
+  `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can
+  show and set it
+  ([source](airootfs/usr/share/surface/kmods/sl7-kbd-backlight)).
 
 The extra modules live in `/usr/lib/modules/<kernel>/updates/` and are built
 by `surface-kmods`. A pacman hook rebuilds them and the devicetree after
