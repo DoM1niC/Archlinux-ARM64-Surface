@@ -94,6 +94,37 @@ Server = $ALARM_MIRROR
 [linux-surface]
 Server = $SURFACE_REPO
 EOF
+    [[ "$WITH_IPTSD" == 1 ]] && setup_omarchy_repo
+    return 0
+}
+
+# Omarchy-Repository (iptsd) als letztes Repository. Der Schlüssel kommt aus
+# dem Paket omarchy-keyring und muss den Fingerabdruck aus config.sh haben.
+setup_omarchy_repo() {
+    msg2 "Binde das Omarchy-Repository ein (iptsd)..."
+    local url="${OMARCHY_REPO//\$arch/aarch64}" tmp file
+    tmp="$(mktemp -d)"
+    curl -fsSL --retry 3 -o "$tmp/omarchy.db" "$url/omarchy.db"
+    file="$(bsdtar -xOf "$tmp/omarchy.db" --include '*omarchy-keyring-*/desc' \
+        | awk '/^%FILENAME%/ { getline; print; exit }')"
+    [[ -n "$file" ]] || die "omarchy-keyring nicht im Omarchy-Repository gefunden."
+    curl -fsSL --retry 3 -o "$tmp/keyring.pkg" "$url/$file"
+    bsdtar -xf "$tmp/keyring.pkg" -C "$tmp" usr/share/pacman/keyrings/omarchy.gpg
+    local fprs
+    fprs="$(GNUPGHOME="$tmp" gpg --batch --with-colons --show-keys \
+        "$tmp/usr/share/pacman/keyrings/omarchy.gpg" 2>/dev/null \
+        | awk -F: '$1 == "pub" { p = 1; next } p && $1 == "fpr" { print $10; p = 0 }')"
+    [[ "$fprs" == "$OMARCHY_KEY_FPR" ]] \
+        || die "Unerwarteter Omarchy-Schlüssel ($fprs), erwartet $OMARCHY_KEY_FPR."
+    pacman-key --add "$tmp/usr/share/pacman/keyrings/omarchy.gpg" >/dev/null 2>&1
+    pacman-key --lsign-key "$OMARCHY_KEY_FPR" >/dev/null 2>&1
+    rm -rf "$tmp"
+
+    cat >> "$PACCONF" <<EOF
+
+[omarchy]
+Server = $OMARCHY_REPO
+EOF
 }
 
 add_localrepo_to_pacconf() {
@@ -108,15 +139,15 @@ EOF
 # ---------------------------------------------------------------------------
 # Pakete, die Arch Linux ARM nicht hat, als lokales Repo bauen:
 #   - Qualcomm-Userspace (WLAN des Surface Pro X)
-#   - iptsd (Touchpad/Touchscreen des Surface Laptop 7)
+# (iptsd kommt aus dem Omarchy-Repository, siehe setup_omarchy_repo)
 # ---------------------------------------------------------------------------
 HAVE_LOCALREPO=0
 
 build_local_packages() {
-    [[ "$WITH_QCOM_USERSPACE" == 1 || "$WITH_IPTSD" == 1 ]] || return 0
+    [[ "$WITH_QCOM_USERSPACE" == 1 ]] || return 0
     HAVE_LOCALREPO=1
 
-    local key="q${WITH_QCOM_USERSPACE}-${QCOM_PKGBUILD_REF:0:12}-i${WITH_IPTSD}-${IPTSD_PKGBUILD_REF:0:12}"
+    local key="q${WITH_QCOM_USERSPACE}-${QCOM_PKGBUILD_REF:0:12}"
     local stamp="$LOCALREPO/.built-$key"
     if [[ -e "$stamp" ]]; then
         msg "Lokale Pakete sind bereits gebaut."
@@ -143,12 +174,6 @@ build_local_packages() {
         git_checkout "$QCOM_PKGBUILD_REPO" "$QCOM_PKGBUILD_REF" "$PKGROOT/home/pkgbuilds/qcom"
         local p
         for p in "${QCOM_PACKAGES[@]}"; do dirs+=("qcom/$p"); done
-    fi
-    if [[ "$WITH_IPTSD" == 1 ]]; then
-        git_checkout "$IPTSD_PKGBUILD_REPO" "$IPTSD_PKGBUILD_REF" "$DL/omarchy-pkgs"
-        mkdir -p "$PKGROOT/home/pkgbuilds/omarchy"
-        cp -r "$DL/omarchy-pkgs/pkgbuilds/iptsd" "$PKGROOT/home/pkgbuilds/omarchy/iptsd"
-        dirs+=("omarchy/iptsd")
     fi
 
     # pacman lädt im chroot Build-Abhängigkeiten nach; unter qemu-user gibt es
@@ -258,7 +283,7 @@ build_rootfs() {
         pkgs+=(qrtr tqftpserv rmtfs-dummy-git)
     fi
     if [[ "$WITH_IPTSD" == 1 ]]; then
-        pkgs+=(iptsd)
+        pkgs+=(omarchy-keyring iptsd)
     fi
 
     # linux-surface hängt vom Metapaket linux-firmware ab, das auch Firmware
@@ -329,7 +354,7 @@ EOF
         LIVE_KEYMAP="$LIVE_KEYMAP" LIVE_FONT="$LIVE_FONT" LIVE_LANG="$LIVE_LANG" \
         LIVE_TIMEZONE="$LIVE_TIMEZONE" LIVE_HOSTNAME="$LIVE_HOSTNAME" \
         WITH_QCOM_USERSPACE="$WITH_QCOM_USERSPACE" HAVE_LOCALREPO="$HAVE_LOCALREPO" \
-        SURFACE_REPO="$SURFACE_REPO" \
+        SURFACE_REPO="$SURFACE_REPO" WITH_IPTSD="$WITH_IPTSD" OMARCHY_REPO="$OMARCHY_REPO" \
         /root/customize.sh
     umount_below "$ROOTFS"
 

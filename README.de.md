@@ -113,7 +113,12 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Devicetree-Einträge werden als Overlays ergänzt
   ([Touchpad](airootfs/usr/share/surface/overlays/sl7-touchpad.dtso),
   [Touchscreen](airootfs/usr/share/surface/overlays/sl7-touchscreen.dtso)),
-  und `iptsd` macht aus den Rohdaten Eingabeereignisse.
+  und `iptsd` macht aus den Rohdaten Eingabeereignisse. iptsd kommt aus dem
+  [Paket-Repository von Omarchy](https://github.com/omacom/omarchy-pkgs)
+  (mit deren Patch, der das Drücken des drucksensitiven Touchpads zum Klick
+  macht); ISO und installiertes System binden es als letztes Repository ein,
+  es kann also keine Pakete von Arch Linux ARM ersetzen, und `pacman -Syu`
+  hält iptsd aktuell und gegen neue Bibliotheken gebaut.
 - **Bluetooth:** Der Controller hat unter Linux keine Adresse und taucht in
   BlueZ nicht auf; `surface-bt-addr` vergibt beim Start eine feste.
 - **Frontkamera:** Im Devicetree fehlen das Kamera-Subsystem (CAMSS) und die

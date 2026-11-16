@@ -53,11 +53,17 @@ SPX_GRUB_URL="https://github.com/linux-surface/grub-image-aarch64/releases/downl
 WITH_SL7_KMODS="${WITH_SL7_KMODS:-1}"
 
 # iptsd (Touch-Verarbeitung im Userspace) – ohne es liefern Touchpad und
-# Touchscreen des Laptop 7 keine Eingaben. Gebaut aus dem PKGBUILD von Omarchy
-# (linux-surface/iptsd 3.1.0 mit zwei Patches für Force-Touchpads).
+# Touchscreen des Laptop 7 keine Eingaben, und ohne die Patches von Omarchy
+# kommt das Drücken des Touchpads nicht als Klick an. Bezogen aus dem
+# Paket-Repository von Omarchy, das iptsd pflegt und neu baut, wenn fmt oder
+# spdlog aktualisiert werden (ein selbst gebautes Paket bräche dann). ISO und
+# installierte Systeme binden es als letztes Repository ein: Pakete, die es auch
+# bei Arch Linux ARM gibt, kommen weiter von dort.
 WITH_IPTSD="${WITH_IPTSD:-1}"
-IPTSD_PKGBUILD_REPO="https://github.com/omacom/omarchy-pkgs"
-IPTSD_PKGBUILD_REF="ea02147686053d0ae6aef9800760fdda4c4e1489"
+OMARCHY_REPO="${OMARCHY_REPO:-https://pkgs.omarchy.org/edge/\$arch}"
+# Signaturschlüssel "Omarchy <pkgs@omarchy.org>"; der Build bricht ab, wenn das
+# Paket omarchy-keyring einen anderen enthält.
+OMARCHY_KEY_FPR="40DFB630FF42BCFFB047046CF0134EE680CAC571"
 
 # --- Kompression -------------------------------------------------------------
 # Der linux-surface-Kernel kann SquashFS nur mit xz, lz4, lzo oder zlib lesen (kein zstd).

@@ -3,5 +3,7 @@
 set -e
 pacman-key --init
 pacman-key --populate archlinuxarm
+# Omarchy (iptsd), falls das Paket omarchy-keyring installiert ist
+[[ -e /usr/share/pacman/keyrings/omarchy.gpg ]] && pacman-key --populate omarchy
 pacman-key --add /usr/share/surface/surface.asc
 pacman-key --lsign-key 56C464BAAC421453

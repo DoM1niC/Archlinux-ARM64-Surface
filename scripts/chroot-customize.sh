@@ -29,10 +29,19 @@ PACEOF
 if [[ "$HAVE_LOCALREPO" == 1 ]]; then
     cat >> /etc/pacman.conf <<'PACEOF'
 
-# Lokal gebaute Pakete (Qualcomm-Userspace für das Pro X, iptsd)
+# Lokal gebaute Pakete (Qualcomm-Userspace für das Pro X)
 [surface-local]
 SigLevel = Optional TrustAll
 Server = file:///opt/surface-repo
+PACEOF
+fi
+if [[ "$WITH_IPTSD" == 1 ]]; then
+    # iptsd; als letztes Repository, damit es keine Arch-Pakete verdrängt
+    cat >> /etc/pacman.conf <<PACEOF
+
+# Omarchy: iptsd mit den Patches für den Surface Laptop 7
+[omarchy]
+Server = $OMARCHY_REPO
 PACEOF
 fi
 

@@ -175,10 +175,12 @@ pkgs+=(dtc)
 # Videotelefonie usw.
 [[ " $overlays " == *" sl7-camera "* ]] && pkgs+=(libcamera libcamera-tools pipewire-libcamera)
 (( needs_kmods )) && pkgs+=(linux-surface-headers base-devel git curl)
-# iptsd verarbeitet die Rohdaten von Touchpad/Touchscreen (lokales Repo des ISOs)
-if [[ -n "$overlays" ]] && grep -q "^\[surface-local\]" /etc/pacman.conf \
-   && compgen -G "/opt/surface-repo/iptsd-*.pkg.tar.*" >/dev/null; then
-    pkgs+=(iptsd)
+# iptsd verarbeitet die Rohdaten von Touchpad/Touchscreen. Es kommt aus dem
+# Omarchy-Repository, das es bei Updates von fmt/spdlog neu baut; der
+# Schlüsselbund dafür wird mitinstalliert (pacstrap übernimmt den Schlüssel aus
+# dem Live-System).
+if [[ -n "$overlays" ]] && grep -q "^\[omarchy\]" /etc/pacman.conf; then
+    pkgs+=(omarchy-keyring iptsd)
 fi
 pkgs+=("${extra_pkgs[@]}")
 
@@ -208,6 +210,16 @@ if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
 # Kernel for Snapdragon-based Surface devices (https://github.com/linux-surface)
 [linux-surface]
 $(sed -n '/^\[linux-surface\]/,/^$/{/^Server/p}' /etc/pacman.conf)
+EOF
+fi
+# Omarchy als letztes Repository: Pakete, die es auch bei Arch Linux ARM gibt,
+# kommen weiter von dort; aus Omarchy kommen nur iptsd und sein Schlüsselbund.
+if [[ " ${pkgs[*]} " == *" iptsd "* ]] && ! grep -q '^\[omarchy\]' "$target/etc/pacman.conf"; then
+    cat >> "$target/etc/pacman.conf" <<EOF
+
+# Omarchy: iptsd with the patches for the Surface Laptop 7 (https://github.com/omacom/omarchy-pkgs)
+[omarchy]
+$(sed -n '/^\[omarchy\]/,/^$/{/^Server/p}' /etc/pacman.conf)
 EOF
 fi
 
