@@ -1,0 +1,47 @@
+#!/bin/bash
+# Erzeugt den Devicetree mit den Zusätzen (Overlays) dieses Geräts.
+# Builds the devicetree with this device's additions (overlays).
+#
+# /etc/default/surface-boot:
+#   SURFACE_DTB="x1e80100-microsoft-romulus13.dtb"
+#   SURFACE_DTB_OVERLAYS="sl7-touchpad"        (Namen unter /usr/share/surface/overlays)
+#
+# Ergebnis: /boot/surface/<SURFACE_DTB>; der GRUB-Eintrag (09_surface) nimmt
+# diese Datei, wenn sie existiert. Nach einem Kernel-Update muss sie aus dem
+# neuen Devicetree des Kernelpakets neu entstehen – das erledigt
+# surface-kernel-update über den pacman-Hook.
+set -euo pipefail
+
+# shellcheck source=../../share/surface/i18n.sh
+source /usr/share/surface/i18n.sh
+
+SURFACE_KERNEL="linux-surface"
+SURFACE_DTB=""
+SURFACE_DTB_OVERLAYS=""
+# shellcheck disable=SC1091
+[[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
+
+OVERLAY_DIR=/usr/share/surface/overlays
+base="/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
+out="/boot/surface/${SURFACE_DTB}"
+
+if [[ -z "$SURFACE_DTB" || -z "$SURFACE_DTB_OVERLAYS" ]]; then
+    rm -f "$out"
+    exit 0
+fi
+
+[[ -e "$base" ]] || { echo "$(t 'Devicetree fehlt' 'devicetree missing'): $base" >&2; exit 1; }
+command -v fdtoverlay >/dev/null || { echo "$(t 'fdtoverlay fehlt (Paket dtc).' 'fdtoverlay missing (package dtc).')" >&2; exit 1; }
+
+dtbos=()
+for o in $SURFACE_DTB_OVERLAYS; do
+    if [[ ! -e "$OVERLAY_DIR/$o.dtbo" || "$OVERLAY_DIR/$o.dtso" -nt "$OVERLAY_DIR/$o.dtbo" ]]; then
+        dtc -q -@ -I dts -O dtb -o "$OVERLAY_DIR/$o.dtbo" "$OVERLAY_DIR/$o.dtso"
+    fi
+    dtbos+=("$OVERLAY_DIR/$o.dtbo")
+done
+
+install -d /boot/surface
+fdtoverlay -i "$base" -o "$out.new" "${dtbos[@]}"
+mv "$out.new" "$out"
+echo "$(t 'Devicetree erzeugt' 'devicetree built'): $out  (+ $SURFACE_DTB_OVERLAYS)"

@@ -26,10 +26,10 @@ cat >> /etc/pacman.conf <<PACEOF
 [linux-surface]
 Server = $SURFACE_REPO
 PACEOF
-if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
+if [[ "$HAVE_LOCALREPO" == 1 ]]; then
     cat >> /etc/pacman.conf <<'PACEOF'
 
-# Lokal gebaute Qualcomm-Userspace-Pakete (Surface Pro X)
+# Lokal gebaute Pakete (Qualcomm-Userspace für das Pro X, iptsd)
 [surface-local]
 SigLevel = Optional TrustAll
 Server = file:///opt/surface-repo

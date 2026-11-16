@@ -1,0 +1,226 @@
+#!/bin/bash
+# Baut Zusatzmodule für den linux-surface-Kernel, die der Surface Laptop 7
+# braucht, und installiert sie nach /usr/lib/modules/<Kernel>/updates/.
+# Builds extra modules for the linux-surface kernel that the Surface Laptop 7
+# needs and installs them to /usr/lib/modules/<kernel>/updates/.
+#
+# wifi      ath12k mit einem Patch: Der rfkill-Eingang des WCN7850 meldet auf
+#           dem Laptop 7 dauerhaft "Funk aus", ath12k sperrt das WLAN dann
+#           hart. Windows ignoriert den Pin über eine ACPI-Einstellung, die ein
+#           Devicetree-Start nicht sieht.
+# touchpad  QSPI-Modus für spi-geni-qcom (als zweiter Treiber), QSPI-Protokoll
+#           im GPI-DMA-Treiber und der passende spi-hid-Treiber, alle aus dem
+#           ELLX-Kernel (siehe /usr/share/surface/kmods/sl7-touchpad/README).
+#
+# Module unter updates/ haben Vorrang vor denen des Kernelpakets. Nach einem
+# Kernel-Update müssen sie neu gebaut werden; das erledigt der pacman-Hook
+# 95-surface-kernel.hook über surface-kernel-update.
+set -euo pipefail
+
+# shellcheck source=../../share/surface/i18n.sh
+source /usr/share/surface/i18n.sh
+
+SHARE=/usr/share/surface
+PATCH="$SHARE/patches/ath12k-sl7-rfkill.patch"
+TOUCHPAD_SRC="$SHARE/kmods/sl7-touchpad"
+KERNEL_REPO="https://github.com/linux-surface/kernel.git"
+KERNEL_RAW="https://raw.githubusercontent.com/linux-surface/kernel"
+PKGBUILD_URL="https://raw.githubusercontent.com/linux-surface/aarch64-packages/linux_surface-%s/linux-surface/PKGBUILD"
+
+WIFI_MODULES=(ath12k.ko)
+TOUCHPAD_MODULES=(gpi.ko spi-geni-qspi.ko spi-hid.ko)
+
+usage() {
+    if [[ "$SURFACE_LANG" == en ]]; then
+        cat <<'USAGE'
+Builds the extra kernel modules the Surface Laptop 7 needs (Wi-Fi: patched
+ath12k; touchpad: QSPI, GPI DMA and spi-hid drivers) and installs them to
+/usr/lib/modules/<kernel>/updates/.
+
+  surface-kmods                 for the running kernel
+  surface-kmods --all           for all installed kernels lacking the modules
+  surface-kmods --kernel K      for kernel release K (e.g. 7.3.1-1-surface)
+  surface-kmods --only wifi|touchpad   build just one set
+  surface-kmods --force         rebuild even if the modules are already there
+  surface-kmods --remove        remove the modules again
+
+Needs: gcc make git patch curl and linux-surface-headers, plus network access.
+USAGE
+    else
+        cat <<'USAGE'
+Baut die Zusatzmodule, die der Surface Laptop 7 braucht (WLAN: gepatchtes
+ath12k; Touchpad: QSPI-, GPI-DMA- und spi-hid-Treiber) und installiert sie
+nach /usr/lib/modules/<Kernel>/updates/.
+
+  surface-kmods                 für den laufenden Kernel
+  surface-kmods --all           für alle installierten Kernel ohne die Module
+  surface-kmods --kernel K      für die Kernel-Version K (z. B. 7.3.1-1-surface)
+  surface-kmods --only wifi|touchpad   nur einen Satz bauen
+  surface-kmods --force         auch bauen, wenn die Module schon da sind
+  surface-kmods --remove        die Module wieder entfernen
+
+Braucht: gcc make git patch curl und linux-surface-headers sowie Netzzugang.
+USAGE
+    fi
+}
+
+msg()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m%s\033[0m %s\n' "$(t 'WARNUNG:' 'WARNING:')" "$*" >&2; }
+die()  { printf '\033[1;31m%s\033[0m %s\n' "$(t 'FEHLER:' 'ERROR:')" "$*" >&2; exit 1; }
+
+kernels=()
+all=0
+force=0
+remove=0
+only=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --all)     all=1 ;;
+        --kernel)  kernels+=("$2"); shift ;;
+        --only)    only="$2"; shift ;;
+        --force)   force=1 ;;
+        --remove)  remove=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) die "$(t 'Unbekannte Option' 'Unknown option'): $1" ;;
+    esac
+    shift
+done
+case "$only" in ""|wifi|touchpad) ;; *) die "--only: wifi | touchpad" ;; esac
+
+(( EUID == 0 )) || die "$(t 'Bitte als root ausführen.' 'Please run as root.')"
+
+if (( all )) || (( remove && ${#kernels[@]} == 0 )); then
+    for d in /usr/lib/modules/*/; do
+        # nur linux-surface-Kernel – andere Kernel bringen eigene Treiber mit
+        [[ "$(basename "$d")" == *-surface ]] && kernels+=("$(basename "$d")")
+    done
+fi
+[[ ${#kernels[@]} -gt 0 ]] || kernels=("$(uname -r)")
+
+wanted_modules=()
+[[ "$only" != touchpad ]] && wanted_modules+=("${WIFI_MODULES[@]}")
+[[ "$only" != wifi ]]     && wanted_modules+=("${TOUCHPAD_MODULES[@]}")
+
+if (( remove )); then
+    for k in "${kernels[@]}"; do
+        for m in "${wanted_modules[@]}"; do
+            rm -f "/usr/lib/modules/$k/updates/$m"
+        done
+        depmod "$k"
+        msg "$k: $(t 'Zusatzmodule entfernt' 'extra modules removed')"
+    done
+    exit 0
+fi
+
+have_all() { # kernel modul...
+    local k="$1" m; shift
+    for m in "$@"; do
+        [[ -e "/usr/lib/modules/$k/updates/$m" ]] || return 1
+    done
+}
+
+build_for() { # kernel-release
+    local k="$1" moddir="/usr/lib/modules/$1" pkgver ref tmp src m
+    local do_wifi=0 do_touchpad=0
+
+    [[ "$only" != touchpad ]] && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
+    [[ "$only" != wifi ]] && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1
+    if (( ! do_wifi && ! do_touchpad )); then
+        msg "$k: $(t 'Zusatzmodule sind schon vorhanden' 'extra modules already present')"
+        return 0
+    fi
+
+    [[ -d "$moddir/build" ]] || {
+        warn "$k: $(t 'Kernel-Header fehlen (Paket linux-surface-headers).' 'kernel headers missing (package linux-surface-headers).')"
+        return 1
+    }
+    local tool
+    for tool in gcc make git patch curl; do
+        command -v "$tool" >/dev/null || {
+            warn "$(t 'Es fehlt' 'Missing'): $tool  (pacman -S --needed base-devel git curl)"
+            return 1
+        }
+    done
+
+    # Paketversion -> Kernel-Commit (steht im PKGBUILD des passenden Tags)
+    pkgver="${k%-surface}"
+    # shellcheck disable=SC2059
+    ref="$(curl -fsSL --retry 3 "$(printf "$PKGBUILD_URL" "$pkgver")" \
+            | sed -n 's/^_ref_ksource="\(.*\)"/\1/p')" || true
+    [[ -n "$ref" ]] || {
+        warn "$k: $(t 'Kernel-Quellstand nicht gefunden (kein Netz?).' 'kernel source revision not found (no network?).')"
+        return 1
+    }
+
+    tmp="$(mktemp -d /var/tmp/surface-kmods.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp'" RETURN
+    local rc=0
+
+    if (( do_wifi )); then
+        msg "$k: $(t 'hole ath12k-Quellen' 'fetching the ath12k sources') (${ref:0:12})"
+        git init -q "$tmp/k"
+        git -C "$tmp/k" remote add origin "$KERNEL_REPO"
+        git -C "$tmp/k" sparse-checkout set drivers/net/wireless/ath
+        if git -C "$tmp/k" fetch -q --depth 1 --filter=blob:none origin "$ref" \
+           && git -C "$tmp/k" checkout -q FETCH_HEAD; then
+            if grep -q 'disable-rfkill' "$tmp/k/drivers/net/wireless/ath/ath12k/"*.c; then
+                msg "$k: $(t 'dieser Kernel kennt bereits "disable-rfkill" – der WLAN-Patch ist evtl. nicht mehr nötig' \
+                            'this kernel already knows "disable-rfkill" – the Wi-Fi patch may no longer be needed')"
+            fi
+            src="$tmp/k/drivers/net/wireless/ath/ath12k"
+            if patch -s -d "$tmp/k" -p1 < "$PATCH" \
+               && make -s -j"$(nproc)" -C "$moddir/build" M="$src" modules >"$tmp/wifi.log" 2>&1; then
+                install -Dm644 "$src/ath12k.ko" "$moddir/updates/ath12k.ko"
+                msg "$k: $(t 'WLAN-Modul installiert' 'Wi-Fi module installed')"
+            else
+                tail -n 15 "$tmp/wifi.log" >&2 2>/dev/null || true
+                warn "$k: $(t 'WLAN-Modul: Patch oder Bau fehlgeschlagen.' 'Wi-Fi module: patch or build failed.')"
+                rc=1
+            fi
+        else
+            warn "$k: $(t 'Kernel-Quellen nicht abrufbar.' 'could not fetch the kernel sources.')"
+            rc=1
+        fi
+    fi
+
+    if (( do_touchpad )); then
+        msg "$k: $(t 'baue Touchpad-Module' 'building the touchpad modules')"
+        cp -r "$TOUCHPAD_SRC" "$tmp/tp"
+        # private Kernel-Header, passend zum Quellstand dieses Kernels
+        if curl -fsSL --retry 3 -o "$tmp/tp/dma/dmaengine.h" "$KERNEL_RAW/$ref/drivers/dma/dmaengine.h" \
+           && curl -fsSL --retry 3 -o "$tmp/tp/dma/virt-dma.h" "$KERNEL_RAW/$ref/drivers/dma/virt-dma.h"; then
+            local d ok=1
+            for d in dma/qcom qspi spi-hid; do
+                make -s -j"$(nproc)" -C "$moddir/build" M="$tmp/tp/$d" modules >>"$tmp/tp.log" 2>&1 || ok=0
+            done
+            if (( ok )); then
+                install -Dm644 "$tmp/tp/dma/qcom/gpi.ko"       "$moddir/updates/gpi.ko"
+                install -Dm644 "$tmp/tp/qspi/spi-geni-qspi.ko" "$moddir/updates/spi-geni-qspi.ko"
+                install -Dm644 "$tmp/tp/spi-hid/spi-hid.ko"    "$moddir/updates/spi-hid.ko"
+                msg "$k: $(t 'Touchpad-Module installiert' 'touchpad modules installed')"
+            else
+                grep -E 'error|Error' "$tmp/tp.log" | tail -n 15 >&2 || true
+                warn "$k: $(t 'Touchpad-Module: Bau fehlgeschlagen.' 'touchpad modules: build failed.')"
+                rc=1
+            fi
+        else
+            warn "$k: $(t 'Kernel-Header für die Touchpad-Module nicht abrufbar.' 'could not fetch the kernel headers for the touchpad modules.')"
+            rc=1
+        fi
+    fi
+
+    depmod "$k"
+    return "$rc"
+}
+
+rc=0
+for k in "${kernels[@]}"; do
+    build_for "$k" || rc=1
+done
+
+if (( rc )); then
+    warn "$(t 'Ohne diese Module bleiben unter dem betroffenen Kernel das WLAN gesperrt bzw. das Touchpad ohne Funktion. Vor dem Neustart beheben oder eine andere Netzverbindung bereithalten.' \
+              'Without these modules Wi-Fi stays blocked and/or the touchpad stays dead under the affected kernel. Fix this before rebooting or keep another network connection at hand.')"
+fi
+exit "$rc"

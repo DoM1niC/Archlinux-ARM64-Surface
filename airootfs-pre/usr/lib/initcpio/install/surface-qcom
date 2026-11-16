@@ -32,6 +32,14 @@ build() {
         add_all_modules "/drivers/${dir}/"
     done
 
+    # Zusatzmodule aus updates/ (surface-kmods) ersetzen teils Module, die oben
+    # schon eingesammelt wurden (gpi, spi-hid). Sie müssen mit ins Image, damit
+    # dort nicht die Fassung des Kernelpakets geladen wird.
+    local mod
+    for mod in "/usr/lib/modules/${KERNELVERSION}/updates"/*.ko*; do
+        [[ -e "$mod" ]] && add_file "$mod"
+    done
+
     # Bewusst NICHT im Initramfs: drivers/remoteproc (ADSP/CDSP). Deren Firmware
     # liegt nur im Root-Dateisystem; würde der Treiber schon hier geladen,
     # schlüge das Laden fehl und würde später nicht wiederholt – ohne ADSP

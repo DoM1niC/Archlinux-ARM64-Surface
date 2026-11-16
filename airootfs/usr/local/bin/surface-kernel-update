@@ -1,0 +1,15 @@
+#!/bin/bash
+# Wird nach Installation/Update des Kernels aufgerufen (pacman-Hook
+# 95-surface-kernel.hook): baut Zusatzmodule und Devicetree neu.
+# Run after the kernel is installed/updated: rebuilds the extra modules and
+# the devicetree.
+rc=0
+/usr/local/bin/surface-dtb-update || rc=1
+# shellcheck disable=SC1091
+[[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
+if [[ "${SURFACE_KMODS:-}" == yes ]]; then
+    /usr/local/bin/surface-kmods --all || rc=1
+    # die neuen Module gehören auch ins Initramfs
+    mkinitcpio -P >/dev/null 2>&1 || rc=1
+fi
+exit "$rc"

@@ -4,7 +4,7 @@ FROM archlinux:latest
 
 RUN pacman -Syu --noconfirm --needed \
         arch-install-scripts squashfs-tools libisoburn mtools dosfstools \
-        git curl zstd libarchive edk2-shell \
+        git curl zstd libarchive edk2-shell dtc \
     && pacman -Scc --noconfirm
 
 WORKDIR /project

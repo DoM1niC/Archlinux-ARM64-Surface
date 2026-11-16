@@ -1,0 +1,24 @@
+Touchpad drivers for the Surface Laptop 7 (13.8" and 15"), built as
+out-of-tree modules for the linux-surface kernel by surface-kmods.
+
+The touchpad is a HID-over-SPI device on a QSPI bus (spi19). The linux-surface
+kernel has no QSPI mode in spi-geni-qcom (built in there) and no QSPI protocol
+in the GPI DMA driver.
+
+Origin: ELLX kernel (github.com/ProgrammerIn-wonderland/ELLX-Kernel, branch
+7.3.0-rc3, commit "Add scruggo's qcom-geni-spi and spi-hid"), GPL-2.0.
+
+  dma/qcom/gpi.c              drivers/dma/qcom/gpi.c from ELLX; replaces the
+                              in-tree gpi module (adds the QSPI protocol)
+  qspi/spi-geni-qspi.c        drivers/spi/spi-geni-qcom.c from ELLX, changed to
+                              a second driver "geni_spi_qspi" that only binds
+                              to "qcom,geni-spi-qspi" (tracepoints stubbed out)
+  spi-hid/                    drivers/hid/spi-hid from ELLX; replaces the
+                              in-tree spi-hid module
+  */qcom-gpi-dma-qspi.h       include/linux/dma/qcom-gpi-dma.h from ELLX
+
+dma/dmaengine.h and dma/virt-dma.h are private kernel headers; surface-kmods
+fetches them from the source revision of the kernel being built for.
+
+The devicetree side is overlays/sl7-touchpad.dtso. Input events are delivered
+by iptsd (multi-touch processing in userspace).

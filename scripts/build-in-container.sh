@@ -106,27 +106,54 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Qualcomm-Userspace (für das WLAN des Surface Pro X) als Pakete bauen
+# Pakete, die Arch Linux ARM nicht hat, als lokales Repo bauen:
+#   - Qualcomm-Userspace (WLAN des Surface Pro X)
+#   - iptsd (Touchpad/Touchscreen des Surface Laptop 7)
 # ---------------------------------------------------------------------------
-build_qcom_packages() {
-    [[ "$WITH_QCOM_USERSPACE" == 1 ]] || return 0
+HAVE_LOCALREPO=0
 
-    local stamp="$LOCALREPO/.built-$QCOM_PKGBUILD_REF"
+build_local_packages() {
+    [[ "$WITH_QCOM_USERSPACE" == 1 || "$WITH_IPTSD" == 1 ]] || return 0
+    HAVE_LOCALREPO=1
+
+    local key="q${WITH_QCOM_USERSPACE}-${QCOM_PKGBUILD_REF:0:12}-i${WITH_IPTSD}-${IPTSD_PKGBUILD_REF:0:12}"
+    local stamp="$LOCALREPO/.built-$key"
     if [[ -e "$stamp" ]]; then
-        msg "Qualcomm-Userspace-Pakete sind bereits gebaut."
+        msg "Lokale Pakete sind bereits gebaut."
         add_localrepo_to_pacconf
         return 0
     fi
 
-    msg "Baue Qualcomm-Userspace-Pakete (${QCOM_PACKAGES[*]})..."
+    msg "Baue lokale Pakete (unter Emulation, das dauert)..."
     umount_below "$PKGROOT"
     rm -rf "$PKGROOT" "$LOCALREPO"
     mkdir -p "$PKGROOT" "$LOCALREPO"
     # Als eigener Einhängepunkt, damit pacman im chroot den freien Platz prüfen kann
     mount --bind "$PKGROOT" "$PKGROOT"
 
-    pacstrap -c -G -M -C "$PACCONF" "$PKGROOT" base base-devel git meson
-    git_checkout "$QCOM_PKGBUILD_REPO" "$QCOM_PKGBUILD_REF" "$PKGROOT/home/pkgbuilds"
+    # Ohne -G: Der Schlüsselbund des Build-Containers wird mitkopiert, damit
+    # makepkg im chroot Build-Abhängigkeiten per pacman nachladen kann
+    # (pacman-key --init läuft unter Emulation nicht zuverlässig).
+    pacstrap -c -M -C "$PACCONF" "$PKGROOT" base base-devel git meson
+    mkdir -p "$PKGROOT/home/pkgbuilds" "$PKGROOT/home/pkgout"
+    chmod 777 "$PKGROOT/home/pkgout"
+
+    local dirs=()
+    if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
+        git_checkout "$QCOM_PKGBUILD_REPO" "$QCOM_PKGBUILD_REF" "$PKGROOT/home/pkgbuilds/qcom"
+        local p
+        for p in "${QCOM_PACKAGES[@]}"; do dirs+=("qcom/$p"); done
+    fi
+    if [[ "$WITH_IPTSD" == 1 ]]; then
+        git_checkout "$IPTSD_PKGBUILD_REPO" "$IPTSD_PKGBUILD_REF" "$DL/omarchy-pkgs"
+        mkdir -p "$PKGROOT/home/pkgbuilds/omarchy"
+        cp -r "$DL/omarchy-pkgs/pkgbuilds/iptsd" "$PKGROOT/home/pkgbuilds/omarchy/iptsd"
+        dirs+=("omarchy/iptsd")
+    fi
+
+    # pacman lädt im chroot Build-Abhängigkeiten nach; unter qemu-user gibt es
+    # kein Landlock, also dessen Sandbox abschalten.
+    sed -i '/^\[options\]/a DisableSandbox' "$PKGROOT/etc/pacman.conf"
 
     cat > "$PKGROOT/root/build.sh" <<'EOF'
 #!/bin/bash
@@ -138,16 +165,14 @@ chown -R builder /home/pkgbuilds
 for p in "$@"; do
     cd "/home/pkgbuilds/$p"
     sudo -u builder env MAKEFLAGS="-j$(nproc)" PKGDEST=/home/pkgout \
-        makepkg -si --noconfirm --needed
+        makepkg -si --noconfirm --needed --nocheck
 done
 EOF
-    mkdir -p "$PKGROOT/home/pkgout"
-    chmod 777 "$PKGROOT/home/pkgout"
-    arch-chroot "$PKGROOT" bash /root/build.sh "${QCOM_PACKAGES[@]}"
+    arch-chroot "$PKGROOT" bash /root/build.sh "${dirs[@]}"
 
     cp "$PKGROOT"/home/pkgout/*.pkg.tar.* "$LOCALREPO/"
     # qmic wird nur zum Bauen gebraucht
-    rm -f "$LOCALREPO"/qmic-*.pkg.tar.*
+    rm -f "$LOCALREPO"/qmic-*.pkg.tar.* "$LOCALREPO"/*-debug-*.pkg.tar.*
     repo-add -q "$LOCALREPO/surface-local.db.tar.zst" "$LOCALREPO"/*.pkg.tar.*
 
     umount_below "$PKGROOT"
@@ -157,42 +182,56 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Gepatchtes WLAN-Modul für den Surface Laptop 7 (siehe surface-wifi-fix)
+# Zusatzmodule für den Surface Laptop 7 (siehe surface-kmods): gepatchtes
+# ath12k sowie die Treiber für Touchpad und Touchscreen
 # ---------------------------------------------------------------------------
-build_wifi_module() {
-    [[ "$WITH_SL7_WIFI_FIX" == 1 ]] || return 0
-
-    local ver patchsum
+kernel_release() {
+    local ver
     mkdir -p "$BUILD/pacdb"
     pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Sy >/dev/null
     ver="$(pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Si linux-surface \
             | awk '/^Version/ {print $3; exit}')"
     [[ -n "$ver" ]] || die "Version von linux-surface nicht ermittelbar."
-    patchsum="$(sha256sum "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch" | cut -c1-12)"
     KERNEL_RELEASE="${ver}-surface"
-    WIFI_MODULE="$BUILD/modcache/ath12k-${ver}-${patchsum}.ko"
+}
 
-    if [[ -s "$WIFI_MODULE" ]]; then
-        msg "Gepatchtes ath12k-Modul für $KERNEL_RELEASE ist bereits gebaut."
+build_kmods() {
+    [[ "$WITH_SL7_KMODS" == 1 ]] || return 0
+
+    local srcsum
+    srcsum="$( (cat "$PROJECT/airootfs/usr/local/bin/surface-kmods" \
+                    "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch"
+                find "$PROJECT/airootfs/usr/share/surface/kmods" -type f | sort | xargs cat) \
+               | sha256sum | cut -c1-12)"
+    KMOD_CACHE="$BUILD/modcache/${KERNEL_RELEASE}-${srcsum}"
+
+    if [[ -e "$KMOD_CACHE/.done" ]]; then
+        msg "Zusatzmodule für $KERNEL_RELEASE sind bereits gebaut."
         return 0
     fi
 
-    msg "Baue gepatchtes ath12k-Modul für $KERNEL_RELEASE..."
+    msg "Baue Zusatzmodule für $KERNEL_RELEASE..."
     umount_below "$PKGROOT"
-    rm -rf "$PKGROOT"
-    mkdir -p "$PKGROOT" "$BUILD/modcache"
+    rm -rf "$PKGROOT" "$KMOD_CACHE"
+    mkdir -p "$PKGROOT" "$KMOD_CACHE"
     mount --bind "$PKGROOT" "$PKGROOT"
     pacstrap -c -G -M -C "$PACCONF" "$PKGROOT" base base-devel git curl linux-surface-headers >/dev/null
 
-    install -Dm755 "$PROJECT/airootfs/usr/local/bin/surface-wifi-fix" "$PKGROOT/usr/local/bin/surface-wifi-fix"
+    install -Dm755 "$PROJECT/airootfs/usr/local/bin/surface-kmods" "$PKGROOT/usr/local/bin/surface-kmods"
     install -Dm644 "$PROJECT/airootfs/usr/share/surface/i18n.sh" "$PKGROOT/usr/share/surface/i18n.sh"
-    install -Dm644 "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch" \
-        "$PKGROOT/usr/share/surface/patches/ath12k-sl7-rfkill.patch"
-    arch-chroot "$PKGROOT" bash -c "ldconfig; surface-wifi-fix --kernel '$KERNEL_RELEASE'"
-    cp "$PKGROOT/usr/lib/modules/$KERNEL_RELEASE/updates/ath12k.ko" "$WIFI_MODULE"
+    cp -r "$PROJECT/airootfs/usr/share/surface/patches" "$PROJECT/airootfs/usr/share/surface/kmods" \
+        "$PKGROOT/usr/share/surface/"
+    arch-chroot "$PKGROOT" bash -c "ldconfig; surface-kmods --kernel '$KERNEL_RELEASE'"
+    cp "$PKGROOT/usr/lib/modules/$KERNEL_RELEASE/updates"/*.ko "$KMOD_CACHE/"
+    touch "$KMOD_CACHE/.done"
 
     umount_below "$PKGROOT"
     rm -rf "$PKGROOT"
+}
+
+# Overlays eines Geräts aus overlays.conf (leer, wenn keine eingetragen sind)
+device_overlays() { # id
+    awk -F'|' -v id="$1" '$1 == id { print $2 }' "$PROJECT/overlays.conf"
 }
 
 # ---------------------------------------------------------------------------
@@ -218,6 +257,9 @@ build_rootfs() {
     if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
         pkgs+=(qrtr tqftpserv rmtfs-dummy-git)
     fi
+    if [[ "$WITH_IPTSD" == 1 ]]; then
+        pkgs+=(iptsd)
+    fi
 
     # linux-surface hängt vom Metapaket linux-firmware ab, das auch Firmware
     # für Intel/AMD/Nvidia nachzieht. Im Live-System reichen die Teilpakete.
@@ -231,12 +273,18 @@ build_rootfs() {
     cp -a "$PROJECT/airootfs/." "$ROOTFS/"
     chown -R root:root "$ROOTFS/etc" "$ROOTFS/usr/local" "$ROOTFS/usr/share/surface"
     install -Dm644 "$PROJECT/devices.conf" "$ROOTFS/usr/share/surface/devices.conf"
+    install -Dm644 "$PROJECT/overlays.conf" "$ROOTFS/usr/share/surface/overlays.conf"
+    # Overlays vorab übersetzen
+    local dtso
+    for dtso in "$ROOTFS"/usr/share/surface/overlays/*.dtso; do
+        dtc -q -@ -I dts -O dtb -o "${dtso%.dtso}.dtbo" "$dtso"
+    done
     install -Dm644 "$DL/surface.asc"       "$ROOTFS/usr/share/surface/surface.asc"
     # Hook auch für das später installierte System bereitstellen
     install -Dm644 "$PROJECT/airootfs-pre/usr/lib/initcpio/install/surface-qcom" \
         "$ROOTFS/usr/share/surface/target/usr/lib/initcpio/install/surface-qcom"
 
-    if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
+    if [[ "$HAVE_LOCALREPO" == 1 ]]; then
         mkdir -p "$ROOTFS/opt/surface-repo"
         cp "$LOCALREPO"/*.pkg.tar.* "$LOCALREPO"/surface-local.db* "$LOCALREPO"/surface-local.files* \
             "$ROOTFS/opt/surface-repo/"
@@ -262,10 +310,10 @@ build_rootfs() {
         done < <(cd "$ROOTFS/usr/share/surface/firmware" && find . \( -type f -o -type l \) -print0)
     fi
 
-    if [[ "$WITH_SL7_WIFI_FIX" == 1 ]]; then
+    if [[ "$WITH_SL7_KMODS" == 1 ]]; then
         [[ -d "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE" ]] \
-            || die "Kernel im Live-Root passt nicht zum gebauten WLAN-Modul ($KERNEL_RELEASE)."
-        install -Dm644 "$WIFI_MODULE" "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/updates/ath12k.ko"
+            || die "Kernel im Live-Root passt nicht zu den gebauten Zusatzmodulen ($KERNEL_RELEASE)."
+        install -Dm644 -t "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/updates" "$KMOD_CACHE"/*.ko
     fi
 
     msg2 "Passe System an (chroot)..."
@@ -280,7 +328,8 @@ EOF
     arch-chroot "$ROOTFS" env \
         LIVE_KEYMAP="$LIVE_KEYMAP" LIVE_FONT="$LIVE_FONT" LIVE_LANG="$LIVE_LANG" \
         LIVE_TIMEZONE="$LIVE_TIMEZONE" LIVE_HOSTNAME="$LIVE_HOSTNAME" \
-        WITH_QCOM_USERSPACE="$WITH_QCOM_USERSPACE" SURFACE_REPO="$SURFACE_REPO" \
+        WITH_QCOM_USERSPACE="$WITH_QCOM_USERSPACE" HAVE_LOCALREPO="$HAVE_LOCALREPO" \
+        SURFACE_REPO="$SURFACE_REPO" \
         /root/customize.sh
     umount_below "$ROOTFS"
 
@@ -295,6 +344,16 @@ EOF
         [[ "$id" =~ ^\s*(#|$) ]] && continue
         cp "$ROOTFS/boot/dtb/linux-surface/qcom/$dtb" "$BUILD/boot/dtb/qcom/" \
             || die "Devicetree $dtb fehlt im Kernelpaket."
+        # Zusätze dieses Geräts (Touchpad, Touchscreen, ...) gleich einarbeiten
+        local ovl dtbos=()
+        for ovl in $(device_overlays "$id"); do
+            dtbos+=("$ROOTFS/usr/share/surface/overlays/$ovl.dtbo")
+        done
+        if [[ ${#dtbos[@]} -gt 0 ]]; then
+            fdtoverlay -i "$ROOTFS/boot/dtb/linux-surface/qcom/$dtb" \
+                -o "$BUILD/boot/dtb/qcom/$dtb" "${dtbos[@]}" \
+                || die "Overlays für $id lassen sich nicht anwenden."
+        fi
     done < "$PROJECT/devices.conf"
 
     rm -f "$ROOTFS/root/customize.sh" "$ROOTFS/root/embedded.cfg"
@@ -570,7 +629,8 @@ ISO_VERSION="$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y.%m.%d)"
 ISO_UUID="$(date -u -d "@$SOURCE_DATE_EPOCH" +%F-%H-%M-%S-00)"
 
 setup_pacman
-build_qcom_packages
-build_wifi_module
+build_local_packages
+kernel_release
+build_kmods
 build_rootfs
 build_iso

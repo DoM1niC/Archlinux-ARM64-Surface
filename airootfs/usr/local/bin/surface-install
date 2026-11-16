@@ -161,12 +161,22 @@ esac
 if [[ "$device" == spx ]] && grep -q "^\[surface-local\]" /etc/pacman.conf; then
     pkgs+=(qrtr tqftpserv rmtfs-dummy-git)
 fi
-# Surface Laptop 7: gepatchtes WLAN-Modul (siehe surface-wifi-fix); zum Neubauen
+# Gerätespezifische Zusätze aus overlays.conf: Devicetree-Overlays (Touchpad,
+# Touchscreen, ...) und Zusatzmodule (surface-kmods). Zum Neubauen der Module
 # nach Kernel-Updates braucht das installierte System Header und Compiler.
-needs_wifi_fix=0
-case "$device" in
-    sl7-*) needs_wifi_fix=1; pkgs+=(linux-surface-headers base-devel git curl) ;;
-esac
+overlays=""
+needs_kmods=0
+if [[ -n "$device" && -r "$SHARE/overlays.conf" ]]; then
+    overlays="$(awk -F'|' -v id="$device" '$1 == id { print $2 }' "$SHARE/overlays.conf")"
+    [[ "$(awk -F'|' -v id="$device" '$1 == id { print $3 }' "$SHARE/overlays.conf")" == yes ]] && needs_kmods=1
+fi
+pkgs+=(dtc)
+(( needs_kmods )) && pkgs+=(linux-surface-headers base-devel git curl)
+# iptsd verarbeitet die Rohdaten von Touchpad/Touchscreen (lokales Repo des ISOs)
+if [[ -n "$overlays" ]] && grep -q "^\[surface-local\]" /etc/pacman.conf \
+   && compgen -G "/opt/surface-repo/iptsd-*.pkg.tar.*" >/dev/null; then
+    pkgs+=(iptsd)
+fi
 pkgs+=("${extra_pkgs[@]}")
 
 msg "$(t 'Installiere Pakete (pacstrap)' 'Installing packages (pacstrap)')"
@@ -221,27 +231,31 @@ install -Dm755 -t "$target/usr/local/bin" \
     /usr/local/bin/surface-device /usr/local/bin/surface-fw-extract /usr/local/bin/surface-locale
 install -Dm644 -t "$target/usr/share/surface" "$SHARE/devices.conf" "$SHARE/i18n.sh"
 install -Dm644 /etc/surface/lang "$target/etc/surface/lang"
-install -Dm755 -t "$target/usr/local/bin" /usr/local/bin/surface-wifi-fix /usr/local/bin/surface-bt-addr
+install -Dm755 -t "$target/usr/local/bin" /usr/local/bin/surface-bt-addr \
+    /usr/local/bin/surface-kmods /usr/local/bin/surface-dtb-update /usr/local/bin/surface-kernel-update
 install -Dm644 -t "$target/etc/systemd/system" "$SHARE/target/etc/systemd/system/surface-bt-addr.service"
 arch-chroot "$target" systemctl enable bluetooth.service surface-bt-addr.service
-install -Dm644 -t "$target/usr/share/surface/patches" "$SHARE"/patches/*
+install -Dm644 "$SHARE/overlays.conf" "$target/usr/share/surface/overlays.conf"
+cp -r "$SHARE/patches" "$SHARE/kmods" "$SHARE/overlays" "$target/usr/share/surface/"
 
-if (( needs_wifi_fix )); then
-    msg "$(t 'Richte WLAN-Korrektur für den Surface Laptop 7 ein' 'Setting up the Wi-Fi fix for the Surface Laptop 7')"
-    install -Dm644 "$SHARE/target/etc/pacman.d/hooks/95-surface-wifi-fix.hook" \
-        "$target/etc/pacman.d/hooks/95-surface-wifi-fix.hook"
+if (( needs_kmods )); then
+    msg "$(t 'Richte Zusatzmodule ein (WLAN, Touchpad, Touchscreen)' 'Setting up the extra modules (Wi-Fi, touchpad, touchscreen)')"
     for kdir in "$target"/usr/lib/modules/*/; do
         k="$(basename "$kdir")"
-        if [[ -e "/usr/lib/modules/$k/updates/ath12k.ko" ]]; then
-            # gleicher Kernel wie im Live-System: fertiges Modul übernehmen
-            install -Dm644 "/usr/lib/modules/$k/updates/ath12k.ko" "$kdir/updates/ath12k.ko"
+        if compgen -G "/usr/lib/modules/$k/updates/*.ko" >/dev/null; then
+            # gleicher Kernel wie im Live-System: fertige Module übernehmen
+            install -Dm644 -t "$kdir/updates" "/usr/lib/modules/$k"/updates/*.ko
             arch-chroot "$target" depmod "$k"
         else
-            arch-chroot "$target" surface-wifi-fix --kernel "$k" \
-                || warn "$(t 'WLAN-Modul nicht gebaut – später nachholen: surface-wifi-fix' \
-                             'Wi-Fi module not built – catch up later: surface-wifi-fix')"
+            arch-chroot "$target" surface-kmods --kernel "$k" \
+                || warn "$(t 'Zusatzmodule nicht gebaut – später nachholen: surface-kmods' \
+                             'Extra modules not built – catch up later: surface-kmods')"
         fi
     done
+fi
+if (( needs_kmods )) || [[ -n "$overlays" ]]; then
+    install -Dm644 "$SHARE/target/etc/pacman.d/hooks/95-surface-kernel.hook" \
+        "$target/etc/pacman.d/hooks/95-surface-kernel.hook"
 fi
 
 # --- Firmware ----------------------------------------------------------------
@@ -270,7 +284,15 @@ SURFACE_DTB="$dtb"
 
 # Kernel parameters this device needs
 SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0${dev_args:+ $dev_args}"
+
+# Devicetree additions (names below /usr/share/surface/overlays). After changes
+# run: surface-dtb-update && grub-mkconfig -o /boot/grub/grub.cfg
+SURFACE_DTB_OVERLAYS="$overlays"
+
+# Rebuild the extra kernel modules (surface-kmods) after kernel updates
+SURFACE_KMODS=$( (( needs_kmods )) && echo yes || echo no )
 EOF
+arch-chroot "$target" surface-dtb-update
 install -Dm755 "$SHARE/target/etc/grub.d/09_surface" "$target/etc/grub.d/09_surface"
 # Das Standardskript erzeugt Einträge ohne Devicetree – die würden nicht starten.
 chmod -x "$target/etc/grub.d/10_linux"

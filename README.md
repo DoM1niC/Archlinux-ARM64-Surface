@@ -53,8 +53,8 @@ linux-surface wiki and issues.
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Audio | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
 | Keyboard, battery (Surface Aggregator) | ✓ | ✓ | – (USB devices) | ✓ | ✓ | ✓ |
-| Touchpad | ? | ? | – | – | ? | ? |
-| Touchscreen | – | – | – | – | – | ✓ |
+| Touchpad | ? | ? | – | ✓ (extra modules + iptsd) | ? | ? |
+| Touchscreen | – | – | – | ✓ (extra modules + iptsd) | – | ✓ |
 | Cameras | – | – | – | – | – | – |
 | Cellular (LTE/5G) | – | – | – | – | – | – |
 
@@ -65,19 +65,39 @@ linux-surface wiki and issues.
 
 **Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
 boot through Ventoy, installation, display, keyboard, NVMe, USB, GNOME, the
-firmware taken from Windows (ADSP/CDSP start), Wi-Fi with the patched module
-(scan), and Bluetooth (after `surface-bt-addr` gave the controller an address)
-work. The **touchpad does not work**: it is a HID-over-QSPI device, and
-this kernel has neither the devicetree node nor QSPI support in
-`spi-geni-qcom`. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
-the devicetree describes 12 cores; that is harmless. Audio works as well; the boot
-takes about 5 s. GPU acceleration and battery reporting were not verified.
+firmware taken from Windows (ADSP/CDSP start), Wi-Fi, Bluetooth, audio, the
+touchpad and the touchscreen work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
+the devicetree describes 12 cores; that is harmless. GPU acceleration, battery
+reporting and suspend were not verified. Cameras are not described in the
+devicetree and do not work.
 
-**Wi-Fi on the Surface Laptop 7:** the WCN7850's rfkill input permanently
-reads "radio off" and ath12k hard-blocks the radio. The ISO therefore ships a
-patched `ath12k` module ([patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch));
-`surface-install` installs it together with a pacman hook that rebuilds it
-after kernel updates (`surface-wifi-fix`, needs network access at that time).
+The Surface Laptop 7 needs three things the linux-surface kernel does not
+provide yet; the ISO and `surface-install` set them up automatically:
+
+- **Wi-Fi:** the WCN7850's rfkill input permanently reads "radio off" and
+  ath12k hard-blocks the radio. A patched `ath12k` module
+  ([patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch)) skips
+  that check.
+- **Touchpad and touchscreen:** both are HID-over-SPI devices on QSPI buses.
+  The kernel lacks the QSPI mode of `spi-geni-qcom`, the QSPI protocol of the
+  GPI DMA driver and a matching `spi-hid`; these come as extra modules taken
+  from the ELLX kernel
+  ([sources](airootfs/usr/share/surface/kmods/sl7-touchpad)). The devicetree
+  nodes are added as overlays
+  ([touchpad](airootfs/usr/share/surface/overlays/sl7-touchpad.dtso),
+  [touchscreen](airootfs/usr/share/surface/overlays/sl7-touchscreen.dtso)),
+  and `iptsd` turns the raw reports into input events.
+- **Bluetooth:** the controller has no address under Linux and does not show
+  up in BlueZ; `surface-bt-addr` assigns a stable one at boot.
+
+The extra modules live in `/usr/lib/modules/<kernel>/updates/` and are built
+by `surface-kmods`. A pacman hook rebuilds them and the devicetree after
+kernel updates (`surface-kernel-update`; needs network access at that time,
+because the matching kernel sources are fetched). Which overlays and modules a
+device gets is listed in [`overlays.conf`](overlays.conf).
+
+On the 15" model the same overlays are applied; they follow its ACPI tables
+and the patches of other projects but were not tested here.
 
 "?" for the touchpad means: not checked. Pen and fingerprint reader/Windows
 Hello were not checked individually. On the
@@ -216,6 +236,7 @@ build with `WITH_SPX_FIRMWARE=0`.
 build.sh                      entry point on the host (Docker, binfmt)
 config.sh                     settings
 devices.conf                  devices, devicetrees, kernel parameters
+overlays.conf                 devicetree overlays and extra modules per device
 keymaps.conf                  keyboard layouts offered in the boot menu
 packages.txt                  packages of the live system
 scripts/build-in-container.sh the actual build (pacstrap, SquashFS, GRUB, xorriso)
@@ -231,6 +252,16 @@ Kernel, initramfs, devicetrees and GRUB live in the EFI partition, the root
 file system as SquashFS (`arch/aarch64/airootfs.sfs`, xz – the linux-surface
 kernel cannot read zstd in SquashFS) in the ISO; the initramfs uses the hooks
 from `mkinitcpio-archiso`.
+
+## CI
+
+[`.gitea/workflows/build-iso.yml`](.gitea/workflows/build-iso.yml) builds the
+ISO on a Gitea Actions runner (manually or on a `v*` tag), uploads it as an
+artifact and attaches it to the release of the tag. The runner must let the
+job start privileged Docker containers. The workflow builds without the Pro X
+firmware (`WITH_SPX_FIRMWARE=0`) because that firmware must not be
+redistributed. The ISO is about 0.8 GB; the build needs roughly 10 GB of disk
+and, on the first run, 45-60 minutes.
 
 ## Known limitations
 

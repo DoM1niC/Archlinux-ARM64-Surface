@@ -1,0 +1,93 @@
+// Surface Laptop 7: touchscreen digitizer, HID over SPI on a QSPI bus (spi10).
+//
+// From the device's ACPI tables (SSDT "SsdtSurf", device \_SB.GTCH, PNP0C51 on
+// "\_SB.SP11"; see linux-surface/acpidumps, surface_laptop_7_qcom): interrupt
+// on GPIO 51 (edge, active low), reset on GPIO 48, supply enabled by GPIO 64,
+// IO2/IO3 on GPIO 49/50. The firmware leaves exactly these pins configured.
+//
+// The tables also describe an I2C variant (\_SB.ITCH, 0x34 on I2C9) selected
+// by a board ID. On the 13.8" unit this was developed on, the I2C address did
+// not answer and the SPI digitizer is the one present.
+//
+// Uses the same out-of-tree drivers as the touchpad (sl7-touchpad.dtso).
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	vreg_touch: touch-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_touch";
+		gpio = <&tlmm 64 0>;	/* GPIO_ACTIVE_HIGH */
+		enable-active-high;
+		startup-delay-us = <100000>;
+	};
+};
+
+&tlmm {
+	qup_qspi10_data23: qup-qspi10-data23-state {
+		/* IO2, IO3 */
+		pins = "gpio49", "gpio50";
+		function = "qup1_se2";
+		drive-strength = <6>;
+		bias-disable;
+	};
+
+	spi10_hid0_reset_deassert: spi10-hid0-reset-deassert-state {
+		pins = "gpio48";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+		output-high;
+	};
+
+	spi10_hid0_reset_assert: spi10-hid0-reset-assert-state {
+		pins = "gpio48";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+		output-low;
+	};
+
+	spi10_hid0_int_bias: spi10-hid0-int-bias-state {
+		pins = "gpio51";
+		function = "gpio";
+		input-enable;
+		bias-pull-up;
+	};
+};
+
+&gpi_dma1 {
+	status = "okay";
+};
+
+&spi10 {
+	status = "okay";
+	compatible = "qcom,geni-spi-qspi";
+	spi-max-frequency = <20000000>;
+	qcom,qspi-read-opcode = <0xEB>;
+	qcom,qspi-read-dummy-clocks = <8>;
+	qcom,qspi-read-cmd-bytes = <4>;
+
+	pinctrl-0 = <&qup_spi10_data_clk>, <&qup_spi10_cs>,
+		    <&qup_qspi10_data23>, <&spi10_hid0_int_bias>;
+	pinctrl-names = "default";
+
+	dmas = <&gpi_dma1 0 2 4>,	/* QCOM_GPI_QSPI */
+	       <&gpi_dma1 1 2 4>;
+	dma-names = "tx", "rx";
+
+	touchscreen@0 {
+		compatible = "hid-over-spi";
+		reg = <0>;
+		spi-max-frequency = <20000000>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <51 2>;	/* IRQ_TYPE_EDGE_FALLING */
+
+		vdd-supply = <&vreg_touch>;
+
+		pinctrl-0 = <&spi10_hid0_reset_deassert>;
+		pinctrl-1 = <&spi10_hid0_reset_assert>;
+		pinctrl-names = "active", "reset";
+	};
+};

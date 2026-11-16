@@ -53,6 +53,9 @@ git
 bluez
 bluez-utils
 
+# Touchpad/Touchscreen (Surface Laptop 7); iptsd kommt aus dem lokalen Repo
+i2c-tools
+
 # Hardware-Diagnose
 usbutils
 pciutils

@@ -1,0 +1,85 @@
+# Baut das ISO und stellt es als Artefakt bereit; bei einem Tag (v*) wird es
+# zusätzlich an ein Release gehängt.
+#
+# Voraussetzungen am Runner:
+#   - Docker ist im Job erreichbar (Docker-Socket des Hosts oder DinD) und darf
+#     privilegierte Container starten: Der Build braucht chroot/Mounts, und auf
+#     x86_64-Runnern registriert build.sh die aarch64-Emulation (binfmt_misc).
+#   - rund 10 GB freier Platz für die Docker-Volumes
+#   - Laufzeit: beim ersten Mal etwa 45-60 Minuten (iptsd und die
+#     Qualcomm-Pakete werden unter Emulation gebaut), danach rund 10 Minuten,
+#     solange die Docker-Volumes des Runners erhalten bleiben.
+#
+# Die Firmware für das Surface Pro X hat keine Weitergabe-Lizenz und wird hier
+# deshalb NICHT eingebaut (WITH_SPX_FIRMWARE=0). Wer sie braucht, baut lokal.
+name: ISO bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      lang:
+        description: "Vorgabesprache (de/en)"
+        default: "de"
+      keymap:
+        description: "Vorgabe-Tastaturbelegung"
+        default: "de-latin1"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Quellen holen
+        uses: actions/checkout@v4
+
+      - name: Docker prüfen
+        run: |
+          docker version
+          docker info --format 'Server {{.ServerVersion}}, {{.NCPU}} CPUs, {{.MemTotal}} Bytes RAM'
+
+      - name: ISO bauen
+        env:
+          CI: "true"
+          WITH_SPX_FIRMWARE: "0"
+          LIVE_LANG: ${{ inputs.lang || 'de' }}
+          LIVE_KEYMAP: ${{ inputs.keymap || 'de-latin1' }}
+        run: ./build.sh
+
+      - name: Ergebnis anzeigen
+        run: |
+          ls -lh out/
+          cat out/*.sha256
+
+      - name: ISO als Artefakt hochladen
+        uses: actions/upload-artifact@v3
+        with:
+          name: archlinux-arm64-surface-iso
+          path: |
+            out/*.iso
+            out/*.sha256
+          retention-days: 14
+
+      - name: An Release hängen (nur bei Tags)
+        if: startsWith(gitea.ref, 'refs/tags/')
+        env:
+          TOKEN: ${{ secrets.GITEA_TOKEN || secrets.GITHUB_TOKEN }}
+          API: ${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}
+          TAG: ${{ gitea.ref_name }}
+        run: |
+          set -euo pipefail
+          id="$(curl -fsS -H "Authorization: token $TOKEN" "$API/releases/tags/$TAG" \
+                  | sed -n 's/^{"id":\([0-9]*\).*/\1/p' || true)"
+          if [ -z "$id" ]; then
+            id="$(curl -fsS -X POST -H "Authorization: token $TOKEN" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\"}" "$API/releases" \
+                  | sed -n 's/^{"id":\([0-9]*\).*/\1/p')"
+          fi
+          for f in out/*.iso out/*.sha256; do
+            curl -fsS -X POST -H "Authorization: token $TOKEN" \
+              -F "attachment=@$f" "$API/releases/$id/assets?name=$(basename "$f")" >/dev/null
+            echo "hochgeladen: $(basename "$f")"
+          done

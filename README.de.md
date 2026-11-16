@@ -51,8 +51,8 @@ linux-surface.
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Ton | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
 | Tastatur, Akku (Surface Aggregator) | ✓ | ✓ | – (USB-Geräte) | ✓ | ✓ | ✓ |
-| Touchpad | ? | ? | – | – | ? | ? |
-| Touchscreen | – | – | – | – | – | ✓ |
+| Touchpad | ? | ? | – | ✓ (Zusatzmodule + iptsd) | ? | ? |
+| Touchscreen | – | – | – | ✓ (Zusatzmodule + iptsd) | – | ✓ |
 | Kameras | – | – | – | – | – | – |
 | Mobilfunk (LTE/5G) | – | – | – | – | – | – |
 
@@ -64,21 +64,40 @@ linux-surface.
 
 **Getestet auf einem Surface Laptop 7 13,8"** (X Plus, Modell 2036, Kernel
 7.3.1): Start über Ventoy, Installation, Display, Tastatur, NVMe, USB, GNOME,
-die aus Windows übernommene Firmware (ADSP/CDSP starten), WLAN mit dem
-gepatchten Modul (Scan) und Bluetooth (nachdem `surface-bt-addr` dem
-Controller eine Adresse gegeben hat) funktionieren. Das **Touchpad
-funktioniert nicht**: Es ist ein HID-over-QSPI-Gerät, und diesem Kernel fehlen
-sowohl der Devicetree-Knoten als auch die QSPI-Unterstützung in
-`spi-geni-qcom`. Die 10-Kern-Variante (X Plus) meldet `CPU7`/`CPU11 failed to
-boot`, weil der Devicetree 12 Kerne beschreibt; das ist harmlos.
-Ton funktioniert ebenfalls; der Start dauert etwa 5 s. GPU-Beschleunigung
-und Akkuanzeige sind nicht überprüft.
+die aus Windows übernommene Firmware (ADSP/CDSP starten), WLAN, Bluetooth, Ton,
+Touchpad und Touchscreen funktionieren; der Start dauert etwa 5 s. Die
+10-Kern-Variante (X Plus) meldet
+`CPU7`/`CPU11 failed to boot`, weil der Devicetree 12 Kerne beschreibt; das
+ist harmlos. GPU-Beschleunigung, Akkuanzeige und Standby sind nicht überprüft.
+Kameras sind im Devicetree nicht beschrieben und funktionieren nicht.
 
-**WLAN auf dem Surface Laptop 7:** Der rfkill-Eingang des WCN7850 meldet
-dauerhaft „Funk aus“, ath12k sperrt das WLAN dann hart. Das ISO bringt deshalb
-ein gepatchtes `ath12k`-Modul mit ([Patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch));
-`surface-install` installiert es zusammen mit einem pacman-Hook, der es nach
-Kernel-Updates neu baut (`surface-wifi-fix`, braucht dann Netzzugang).
+Der Surface Laptop 7 braucht drei Dinge, die der linux-surface-Kernel noch
+nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
+
+- **WLAN:** Der rfkill-Eingang des WCN7850 meldet dauerhaft „Funk aus“, ath12k
+  sperrt das WLAN dann hart. Ein gepatchtes `ath12k`-Modul
+  ([Patch](airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch))
+  überspringt diese Abfrage.
+- **Touchpad und Touchscreen:** Beide sind HID-over-SPI-Geräte an QSPI-Bussen.
+  Dem Kernel fehlen der QSPI-Modus von `spi-geni-qcom`, das QSPI-Protokoll des
+  GPI-DMA-Treibers und ein passender `spi-hid`; sie kommen als Zusatzmodule
+  aus dem ELLX-Kernel
+  ([Quellen](airootfs/usr/share/surface/kmods/sl7-touchpad)). Die
+  Devicetree-Einträge werden als Overlays ergänzt
+  ([Touchpad](airootfs/usr/share/surface/overlays/sl7-touchpad.dtso),
+  [Touchscreen](airootfs/usr/share/surface/overlays/sl7-touchscreen.dtso)),
+  und `iptsd` macht aus den Rohdaten Eingabeereignisse.
+- **Bluetooth:** Der Controller hat unter Linux keine Adresse und taucht in
+  BlueZ nicht auf; `surface-bt-addr` vergibt beim Start eine feste.
+
+Die Zusatzmodule liegen unter `/usr/lib/modules/<Kernel>/updates/` und werden
+von `surface-kmods` gebaut. Ein pacman-Hook baut sie und den Devicetree nach
+Kernel-Updates neu (`surface-kernel-update`; braucht dann Netzzugang, weil die
+passenden Kernel-Quellen geholt werden). Welche Overlays und Module ein Gerät
+bekommt, steht in [`overlays.conf`](overlays.conf).
+
+Beim 15"-Modell werden dieselben Overlays angewendet; sie folgen dessen
+ACPI-Tabellen und den Patches anderer Projekte, sind hier aber nicht getestet.
 
 „?“ beim Touchpad heißt: nicht geprüft. Stift und Fingerabdruckleser/Windows
 Hello sind nicht einzeln geprüft. Beim
@@ -219,6 +238,7 @@ oder mit `WITH_SPX_FIRMWARE=0` bauen.
 build.sh                      Einstieg auf dem Host (Docker, binfmt)
 config.sh                     Einstellungen
 devices.conf                  Geräte, Devicetrees, Kernel-Parameter
+overlays.conf                 Devicetree-Overlays und Zusatzmodule je Gerät
 keymaps.conf                  Tastaturbelegungen im Bootmenü
 packages.txt                  Pakete des Live-Systems
 scripts/build-in-container.sh eigentlicher Build (pacstrap, SquashFS, GRUB, xorriso)
@@ -234,6 +254,16 @@ Kernel, Initramfs, Devicetrees und GRUB liegen in der EFI-Partition, das
 Root-Dateisystem als SquashFS (`arch/aarch64/airootfs.sfs`, xz – zstd kann der
 linux-surface-Kernel in SquashFS nicht lesen) im ISO; das Initramfs nutzt die
 Hooks aus `mkinitcpio-archiso`.
+
+## CI
+
+[`.gitea/workflows/build-iso.yml`](.gitea/workflows/build-iso.yml) baut das
+ISO auf einem Gitea-Actions-Runner (von Hand oder bei einem Tag `v*`), lädt es
+als Artefakt hoch und hängt es an das Release des Tags. Der Runner muss dem
+Job erlauben, privilegierte Docker-Container zu starten. Der Workflow baut
+ohne die Pro-X-Firmware (`WITH_SPX_FIRMWARE=0`), weil sie nicht weitergegeben
+werden darf. Das ISO ist rund 0,8 GB groß; der Build braucht etwa 10 GB Platz
+und beim ersten Lauf 45–60 Minuten.
 
 ## Bekannte Grenzen
 

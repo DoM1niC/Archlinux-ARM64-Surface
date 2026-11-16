@@ -47,9 +47,17 @@ WITH_SPX_GRUB="${WITH_SPX_GRUB:-1}"
 SPX_GRUB_URL="https://github.com/linux-surface/grub-image-aarch64/releases/download/fedora-39-1/bootaa64.efi"
 
 # --- Surface Laptop 7 --------------------------------------------------------
-# Gepatchtes WLAN-Modul (ath12k ohne rfkill-Abfrage) für den Kernel des ISOs
-# vorab bauen; ohne es ist das WLAN des Laptop 7 hart gesperrt.
-WITH_SL7_WIFI_FIX="${WITH_SL7_WIFI_FIX:-1}"
+# Zusatzmodule für den Kernel des ISOs vorab bauen (siehe surface-kmods):
+# gepatchtes WLAN-Modul (ohne es ist das WLAN hart gesperrt) sowie die Treiber
+# für Touchpad und Touchscreen.
+WITH_SL7_KMODS="${WITH_SL7_KMODS:-1}"
+
+# iptsd (Touch-Verarbeitung im Userspace) – ohne es liefern Touchpad und
+# Touchscreen des Laptop 7 keine Eingaben. Gebaut aus dem PKGBUILD von Omarchy
+# (linux-surface/iptsd 3.1.0 mit zwei Patches für Force-Touchpads).
+WITH_IPTSD="${WITH_IPTSD:-1}"
+IPTSD_PKGBUILD_REPO="https://github.com/omacom/omarchy-pkgs"
+IPTSD_PKGBUILD_REF="ea02147686053d0ae6aef9800760fdda4c4e1489"
 
 # --- Kompression -------------------------------------------------------------
 # Der linux-surface-Kernel kann SquashFS nur mit xz, lz4, lzo oder zlib lesen (kein zstd).

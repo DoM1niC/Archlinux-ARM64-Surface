@@ -59,25 +59,36 @@ docker build -q -t "$IMAGE" . >/dev/null
 
 mkdir -p out
 
-run=(docker run --rm --privileged
-     -v "$PWD":/project:ro
-     -v "$PWD/out":/out
-     -v "$VOL_WORK":/build
-     -v "$VOL_CACHE":/var/cache/pacman/pkg-aarch64
-     -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)")
+# Gemeinsame Optionen für den Build-Container
+opts=(--privileged
+      -v "$VOL_WORK":/build
+      -v "$VOL_CACHE":/var/cache/pacman/pkg-aarch64)
 
 # Konfigurations-Overrides aus der Umgebung durchreichen
 for v in ISO_NAME ISO_LABEL ALARM_MIRROR SURFACE_REPO LIVE_LANG LIVE_KEYMAP LIVE_FONT \
          LIVE_TIMEZONE LIVE_HOSTNAME WITH_SPX_FIRMWARE WITH_QCOM_USERSPACE \
-         WITH_SPX_GRUB WITH_SL7_WIFI_FIX REBUILD; do
-    [[ -v $v ]] && run+=(-e "$v=${!v}")
+         WITH_SPX_GRUB WITH_SL7_KMODS WITH_IPTSD REBUILD SOURCE_DATE_EPOCH; do
+    [[ -v $v ]] && opts+=(-e "$v=${!v}")
 done
 
-if [[ "${1:-}" == shell ]]; then
-    exec "${run[@]}" -it "$IMAGE" bash
+# In CI läuft dieses Skript meist selbst in einem Container und spricht den
+# Docker-Daemon des Hosts an; Verzeichnisse von hier lassen sich dann nicht
+# einbinden. Dort (oder mit BUILD_COPY=1) werden Projekt und Ergebnis kopiert.
+if [[ -n "${CI:-}" || "${BUILD_COPY:-0}" == 1 ]]; then
+    [[ "${1:-}" == shell ]] && die "'shell' gibt es im Kopiermodus nicht."
+    cid="$(docker create "${opts[@]}" "$IMAGE" /project/scripts/build-in-container.sh)"
+    trap 'docker rm -f "$cid" >/dev/null 2>&1' EXIT
+    tar -c --exclude=./out --exclude=./.git . | docker cp - "$cid:/project"
+    docker start -a "$cid"
+    docker cp "$cid:/out/." out/
+else
+    opts+=(-v "$PWD":/project:ro -v "$PWD/out":/out
+           -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)")
+    if [[ "${1:-}" == shell ]]; then
+        exec docker run --rm -it "${opts[@]}" "$IMAGE" bash
+    fi
+    docker run --rm "${opts[@]}" "$IMAGE" /project/scripts/build-in-container.sh
 fi
-
-"${run[@]}" "$IMAGE" /project/scripts/build-in-container.sh
 
 iso="$(ls -t out/*.iso | head -n1)"
 cat <<EOF

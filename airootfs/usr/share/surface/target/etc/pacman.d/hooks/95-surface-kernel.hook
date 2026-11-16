@@ -1,0 +1,13 @@
+# Baut nach einem Kernel-Update Devicetree (mit Overlays) und Zusatzmodule
+# dieses Geräts neu (siehe surface-kernel-update, surface-kmods --help).
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux-surface
+Target = linux-surface-headers
+
+[Action]
+Description = Rebuilding Surface devicetree and extra kernel modules...
+When = PostTransaction
+Exec = /usr/local/bin/surface-kernel-update
