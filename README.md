@@ -138,8 +138,15 @@ provide yet; the ISO and `surface-install` set them up automatically:
   system dma-buf heap the software ISP needs (deliberately not the small CMA
   heap, which libcamera would otherwise prefer and run out of), and a WirePlumber rule that hides
   the raw CAMSS video nodes, so apps see one camera instead of sixteen.
-  Images are still dark in dim light and the auto exposure settles slowly:
-  libcamera 0.7.2 has no tuning for this sensor yet. The IR camera
+  libcamera 0.7.2 does not know the sensor and would otherwise estimate the
+  black level from every frame; in the dark, shadows then turn red and
+  bright areas cyan. A tuning file
+  ([`ov02c10.yaml`](airootfs/usr/share/surface/target/etc/libcamera/ipa/simple/ov02c10.yaml),
+  in `/etc/libcamera/ipa/simple/`) sets the fixed black level 0x40 (10 bit;
+  measured on the device at minimum exposure: 64.06). With room light the
+  colours are right, if somewhat pale (no calibrated colour matrix). Very
+  dark rooms keep a cyan cast: the software ISP's white balance amplifies red
+  at most fourfold, and auto exposure settles slowly. The IR camera
   (Windows Hello) is not described.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as

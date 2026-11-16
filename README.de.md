@@ -139,10 +139,17 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   (bewusst nicht den kleinen CMA-Heap, den libcamera sonst bevorzugt und
   schnell erschöpft), und
   eine WirePlumber-Regel, die die rohen CAMSS-Videoknoten ausblendet; so
-  sehen Programme eine Kamera statt sechzehn. Bei wenig
-  Licht sind die Bilder noch dunkel und die Belichtung regelt langsam nach:
-  libcamera 0.7.2 hat für diesen Sensor noch keine Abstimmung. Die
-  IR-Kamera (Windows Hello) ist nicht beschrieben.
+  sehen Programme eine Kamera statt sechzehn. libcamera 0.7.2 kennt den
+  Sensor nicht und schätzt den Schwarzwert sonst aus jedem Bild; im Dunkeln
+  werden dann Schatten rot und helle Flächen cyan. Eine Abstimmungsdatei
+  ([`ov02c10.yaml`](airootfs/usr/share/surface/target/etc/libcamera/ipa/simple/ov02c10.yaml),
+  unter `/etc/libcamera/ipa/simple/`) setzt den festen Schwarzwert 0x40
+  (10 Bit; am Gerät bei minimaler Belichtung gemessen: 64,06). Bei
+  Raumlicht sind die Farben damit stimmig, wenn auch etwas blass (ohne
+  eingemessene Farbmatrix). In sehr dunklen Räumen bleibt ein Cyanstich: Der
+  Weißabgleich des Software-ISP verstärkt Rot höchstens vierfach, und die
+  Belichtung regelt langsam nach. Die IR-Kamera (Windows Hello) ist nicht
+  beschrieben.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit
