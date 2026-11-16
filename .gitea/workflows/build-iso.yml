@@ -6,9 +6,10 @@
 #     privilegierte Container starten: Der Build braucht chroot/Mounts, und auf
 #     x86_64-Runnern registriert build.sh die aarch64-Emulation (binfmt_misc).
 #   - rund 10 GB freier Platz für die Docker-Volumes
-#   - Laufzeit: beim ersten Mal etwa 30-45 Minuten (die Qualcomm-Pakete und
-#     die Zusatzmodule werden unter Emulation gebaut), danach rund 10 Minuten,
-#     solange die Docker-Volumes des Runners erhalten bleiben.
+#   - Laufzeit: beim ersten Mal etwa 30 Minuten (die Qualcomm-Pakete werden
+#     unter Emulation gebaut), danach rund 10 Minuten, solange die
+#     Docker-Volumes des Runners erhalten bleiben. Der Kernel kommt fertig aus
+#     der Paketregistry (scripts/build-kernel.sh, nicht Teil dieses Workflows).
 #
 # Die Firmware für das Surface Pro X hat keine Weitergabe-Lizenz und wird hier
 # deshalb NICHT eingebaut (WITH_SPX_FIRMWARE=0). Wer sie braucht, baut lokal.

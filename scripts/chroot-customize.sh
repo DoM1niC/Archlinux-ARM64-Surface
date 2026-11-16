@@ -20,6 +20,15 @@ ln -sf "/usr/share/zoneinfo/$LIVE_TIMEZONE" /etc/localtime
 echo "$LIVE_HOSTNAME" > /etc/hostname
 
 # --- pacman ------------------------------------------------------------------
+if [[ "$WITH_SURFACE_KERNEL" == 1 ]]; then
+    # vor [linux-surface], damit pacman linux-surface von hier nimmt
+    cat >> /etc/pacman.conf <<PACEOF
+
+# linux-surface mit den Treibern für den Surface Laptop 7
+[surface-kernel]
+Server = $KERNEL_REPO
+PACEOF
+fi
 cat >> /etc/pacman.conf <<PACEOF
 
 # Kernel für Snapdragon-Surface-Geräte

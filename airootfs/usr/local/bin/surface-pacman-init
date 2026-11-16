@@ -7,3 +7,8 @@ pacman-key --populate archlinuxarm
 [[ -e /usr/share/pacman/keyrings/omarchy.gpg ]] && pacman-key --populate omarchy
 pacman-key --add /usr/share/surface/surface.asc
 pacman-key --lsign-key 56C464BAAC421453
+# Eigener Kernel (Repository surface-kernel), falls das ISO damit gebaut wurde
+if [[ -e /usr/share/surface/surface-kernel.asc && -e /usr/share/surface/surface-kernel.fpr ]]; then
+    pacman-key --add /usr/share/surface/surface-kernel.asc
+    pacman-key --lsign-key "$(cat /usr/share/surface/surface-kernel.fpr)"
+fi

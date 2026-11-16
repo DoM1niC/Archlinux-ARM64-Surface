@@ -79,8 +79,8 @@ linux-surface wiki and issues.
   (`surface-fw-extract`, see below). For the Pro X it is already in the ISO.
 - **–**: not described in the devicetree, so currently without function.
 
-**Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
-boot through Ventoy, installation, display and brightness, GPU acceleration
+**Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, own kernel
+7.3.1-1.1): boot through Ventoy, installation, display and brightness, GPU acceleration
 (freedreno, Adreno X1-85, OpenGL 4.6 and Vulkan through Turnip), keyboard
 and keyboard backlight,
 touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
@@ -91,13 +91,15 @@ the standby power draw was not measured. The 10-core X Plus logs
 `CPU7`/`CPU11 failed to boot` because the devicetree describes 12 cores; that
 is harmless.
 
-**Known issue, CPU clock:** only the first CPU cluster (cores 0–3) has
-frequency scaling. For the other two the firmware marks every frequency step as
-turbo, and Linux drops them all when setting up cpufreq. These cores still run
-at full speed under load, but Linux cannot clock them down, which costs
-battery. Fixing it needs a kernel change. The ISO sets the `schedutil`
-governor; the kernel default `performance` would keep cores 0–3 at 3.4 GHz all
-the time.
+**CPU clock:** for CPU clusters 2 and 3 (cores 4–11) the firmware reports no
+sustained frequency, so every frequency step would count as turbo and Linux
+would drop them all when setting up cpufreq. These cores could then not be
+clocked down, which costs battery. The own kernel (see below) handles this
+case: all three clusters scale between 0.7 and 3.4 GHz
+([patch](kernel/0002-arm_scmi-perf-no-turbo-without-sustained-freq.patch)).
+With the unmodified linux-surface kernel only cluster 1 can be scaled. The ISO
+sets the `schedutil` governor; the kernel default `performance` would keep all
+cores at 3.4 GHz all the time.
 
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
 provide yet; the ISO and `surface-install` set them up automatically:
@@ -108,8 +110,8 @@ provide yet; the ISO and `surface-install` set them up automatically:
   that check.
 - **Touchpad and touchscreen:** both are HID-over-SPI devices on QSPI buses.
   The kernel lacks the QSPI mode of `spi-geni-qcom`, the QSPI protocol of the
-  GPI DMA driver and a matching `spi-hid`; these come as extra modules taken
-  from the ELLX kernel
+  GPI DMA driver and a matching `spi-hid`; these are taken from the ELLX
+  kernel
   ([sources](airootfs/usr/share/surface/kmods/sl7-touchpad)). The devicetree
   nodes are added as overlays
   ([touchpad](airootfs/usr/share/surface/overlays/sl7-touchpad.dtso),
@@ -140,11 +142,26 @@ provide yet; the ISO and `surface-install` set them up automatically:
   show and set it
   ([source](airootfs/usr/share/surface/kmods/sl7-kbd-backlight)).
 
-The extra modules live in `/usr/lib/modules/<kernel>/updates/` and are built
-by `surface-kmods`. A pacman hook rebuilds them and the devicetree after
-kernel updates (`surface-kernel-update`; needs network access at that time,
-because the matching kernel sources are fetched). Which overlays and modules a
-device gets is listed in [`overlays.conf`](overlays.conf).
+**Own kernel:** the ISO and installed systems take `linux-surface` from this
+project's own repository (`[surface-kernel]` in its Gitea package registry,
+placed before `[linux-surface]` in `pacman.conf`). The kernel equals
+linux-surface (same source revision, same configuration) and additionally
+contains the drivers above (Wi-Fi patch, touchpad/touchscreen, keyboard
+backlight) plus a fix for the CPU clock (see above)
+([PKGBUILD](kernel/PKGBUILD)). Version `7.3.1-1.1` means linux-surface
+`7.3.1-1` plus our revision `.1`. It is built with `scripts/build-kernel.sh`
+using a cross compiler in Docker (about 20 minutes on 16 cores);
+`scripts/build-kernel.sh upload` pushes it to the registry. It has to be
+rebuilt for every new linux-surface release; until then installed systems
+stay on the previous kernel.
+
+Without the own kernel (`WITH_SURFACE_KERNEL=0`) the drivers come as extra
+modules: `surface-kmods` builds them into `/usr/lib/modules/<kernel>/updates/`,
+and a pacman hook rebuilds them and the devicetree after kernel updates
+(`surface-kernel-update`; needs network access at that time, because the
+matching kernel sources are fetched). For the own kernel `surface-kmods` builds
+nothing. Which overlays and modules a device gets is listed in
+[`overlays.conf`](overlays.conf).
 
 On the 15" model the same overlays are applied; they follow its ACPI tables
 and the patches of other projects but were not tested here.
@@ -292,6 +309,8 @@ packages.txt                  packages of the live system
 scripts/build-in-container.sh the actual build (pacstrap, SquashFS, GRUB, xorriso)
 scripts/chroot-customize.sh   tweaks inside the aarch64 root (initramfs, GRUB image)
 scripts/test-qemu.sh          smoke test in QEMU
+scripts/build-kernel.sh       build the own kernel (cross compile in Docker) and upload it
+kernel/                       PKGBUILD and patches of the own kernel
 airootfs-pre/                 files placed in the root before package installation
                               (initramfs hooks surface-qcom and surface_isoscan)
 airootfs/                     overlay of the live system (tools, systemd units)

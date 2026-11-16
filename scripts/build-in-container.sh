@@ -73,6 +73,15 @@ setup_pacman() {
     pacman-key --add "$DL/surface.asc" >/dev/null 2>&1
     pacman-key --lsign-key "$SURFACE_KEY_ID" >/dev/null 2>&1
 
+    # Eigener Kernel (Gitea-Paketregistry) vor [linux-surface]
+    local kernel_section=""
+    if [[ "$WITH_SURFACE_KERNEL" == 1 ]]; then
+        setup_kernel_key
+        kernel_section="[surface-kernel]
+Server = $KERNEL_REPO
+"
+    fi
+
     cat > "$PACCONF" <<EOF
 [options]
 Architecture = aarch64
@@ -91,11 +100,27 @@ Server = $ALARM_MIRROR
 [aur]
 Server = $ALARM_MIRROR
 
-[linux-surface]
+${kernel_section}[linux-surface]
 Server = $SURFACE_REPO
 EOF
     [[ "$WITH_IPTSD" == 1 ]] && setup_omarchy_repo
     return 0
+}
+
+# Signaturschlüssel der Arch-Paketregistry von Gitea (Repository
+# surface-kernel); muss den Fingerabdruck aus config.sh haben.
+setup_kernel_key() {
+    msg2 "Binde das Kernel-Repository ein ($KERNEL_REPO_NAME)..."
+    fetch "${GITEA_URL}/api/packages/${GITEA_OWNER}/arch/repository.key" "$DL/surface-kernel.asc"
+    local tmp fprs
+    tmp="$(mktemp -d)"
+    fprs="$(GNUPGHOME="$tmp" gpg --batch --with-colons --show-keys "$DL/surface-kernel.asc" 2>/dev/null \
+        | awk -F: '$1 == "pub" { p = 1; next } p && $1 == "fpr" { print $10; p = 0 }')"
+    rm -rf "$tmp"
+    [[ "$fprs" == "$KERNEL_KEY_FPR" ]] \
+        || die "Unerwarteter Schlüssel der Kernel-Registry ($fprs), erwartet $KERNEL_KEY_FPR."
+    pacman-key --add "$DL/surface-kernel.asc" >/dev/null 2>&1
+    pacman-key --lsign-key "$KERNEL_KEY_FPR" >/dev/null 2>&1
 }
 
 # Omarchy-Repository (iptsd) als letztes Repository. Der Schlüssel kommt aus
@@ -222,6 +247,10 @@ kernel_release() {
 
 build_kmods() {
     [[ "$WITH_SL7_KMODS" == 1 ]] || return 0
+    if [[ "$WITH_SURFACE_KERNEL" == 1 ]]; then
+        msg "Zusatzmodule: im Kernel aus $KERNEL_REPO_NAME enthalten."
+        return 0
+    fi
 
     local srcsum
     srcsum="$( (cat "$PROJECT/airootfs/usr/local/bin/surface-kmods" \
@@ -335,7 +364,12 @@ build_rootfs() {
         done < <(cd "$ROOTFS/usr/share/surface/firmware" && find . \( -type f -o -type l \) -print0)
     fi
 
-    if [[ "$WITH_SL7_KMODS" == 1 ]]; then
+    if [[ "$WITH_SURFACE_KERNEL" == 1 ]]; then
+        [[ -e "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/surface-drivers" ]] \
+            || die "linux-surface im Live-Root kommt nicht aus $KERNEL_REPO_NAME ($KERNEL_RELEASE)."
+        install -Dm644 "$DL/surface-kernel.asc" "$ROOTFS/usr/share/surface/surface-kernel.asc"
+        echo "$KERNEL_KEY_FPR" > "$ROOTFS/usr/share/surface/surface-kernel.fpr"
+    elif [[ "$WITH_SL7_KMODS" == 1 ]]; then
         [[ -d "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE" ]] \
             || die "Kernel im Live-Root passt nicht zu den gebauten Zusatzmodulen ($KERNEL_RELEASE)."
         install -Dm644 -t "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/updates" "$KMOD_CACHE"/*.ko
@@ -355,6 +389,7 @@ EOF
         LIVE_TIMEZONE="$LIVE_TIMEZONE" LIVE_HOSTNAME="$LIVE_HOSTNAME" \
         WITH_QCOM_USERSPACE="$WITH_QCOM_USERSPACE" HAVE_LOCALREPO="$HAVE_LOCALREPO" \
         SURFACE_REPO="$SURFACE_REPO" WITH_IPTSD="$WITH_IPTSD" OMARCHY_REPO="$OMARCHY_REPO" \
+        WITH_SURFACE_KERNEL="$WITH_SURFACE_KERNEL" KERNEL_REPO="$KERNEL_REPO" \
         /root/customize.sh
     umount_below "$ROOTFS"
 

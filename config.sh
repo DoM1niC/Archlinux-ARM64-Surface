@@ -46,6 +46,22 @@ QCOM_PACKAGES=(qmic qrtr tqftpserv rmtfs-dummy)
 WITH_SPX_GRUB="${WITH_SPX_GRUB:-1}"
 SPX_GRUB_URL="https://github.com/linux-surface/grub-image-aarch64/releases/download/fedora-39-1/bootaa64.efi"
 
+# --- Eigener Kernel ----------------------------------------------------------
+# linux-surface mit den Treibern für den Surface Laptop 7 (kernel/PKGBUILD,
+# gebaut mit scripts/build-kernel.sh) aus der Arch-Paketregistry von Gitea. ISO
+# und installierte Systeme binden sie vor [linux-surface] ein, damit pacman
+# den Kernel von dort nimmt.
+WITH_SURFACE_KERNEL="${WITH_SURFACE_KERNEL:-1}"
+GITEA_URL="${GITEA_URL:-https://git.3dns.eu}"
+GITEA_OWNER="${GITEA_OWNER:-dom1nic}"
+KERNEL_REPO_NAME="${KERNEL_REPO_NAME:-surface-kernel}"
+KERNEL_REPO="${KERNEL_REPO:-${GITEA_URL}/api/packages/${GITEA_OWNER}/arch/${KERNEL_REPO_NAME}/\$arch}"
+# Signaturschlüssel der Arch-Registry von Gitea ("Arch Registry", pro Besitzer);
+# der Build bricht ab, wenn repository.key einen anderen liefert.
+KERNEL_KEY_FPR="BD9DA325AF7BB09149F3AE5E9F391D3802FDE845"
+# Ohne den eigenen Kernel (WITH_SURFACE_KERNEL=0) kommt linux-surface
+# unverändert von linux-surface, und surface-kmods baut die Treiber als Module.
+
 # --- Surface Laptop 7 --------------------------------------------------------
 # Zusatzmodule für den Kernel des ISOs vorab bauen (siehe surface-kmods):
 # gepatchtes WLAN-Modul (ohne es ist das WLAN hart gesperrt) sowie die Treiber

@@ -1,0 +1,90 @@
+From f069675289f46f91dbc6dc35dc8c054aa1567dc6 Mon Sep 17 00:00:00 2001
+From: surface <surface@localhost>
+Date: Mon, 16 Nov 2026 21:14:33 +0100
+Subject: [PATCH 1/2] Kconfig/Makefile entries for the Surface Laptop 7 drivers
+
+---
+ drivers/hid/Kconfig          |  8 ++++++++
+ drivers/hid/Makefile         |  1 +
+ drivers/hid/spi-hid/Makefile |  3 +--
+ drivers/spi/Kconfig          | 11 +++++++++++
+ drivers/spi/Makefile         |  1 +
+ 5 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/hid/Kconfig b/drivers/hid/Kconfig
+index 17a423018..b16379980 100644
+--- a/drivers/hid/Kconfig
++++ b/drivers/hid/Kconfig
+@@ -1184,6 +1184,14 @@ config SONY_FF
+ 	Say Y here if you have a Sony PS2/3/4 accessory and want to enable
+ 	force feedback support for it.
+ 
++config HID_SURFACE_KBD_BACKLIGHT
++	tristate "Surface Laptop 7 keyboard backlight"
++	depends on LEDS_CLASS
++	help
++	  Exposes the keyboard backlight of the Surface Laptop 7 (HID device
++	  045E:006C behind the Surface Aggregator) as the LED device
++	  surface::kbd_backlight.
++
+ config HID_SPEEDLINK
+ 	tristate "Speedlink VAD Cezanne mouse support"
+ 	help
+diff --git a/drivers/hid/Makefile b/drivers/hid/Makefile
+index 43dca9b36..09a700c2b 100644
+--- a/drivers/hid/Makefile
++++ b/drivers/hid/Makefile
+@@ -135,6 +135,7 @@ obj-$(CONFIG_HID_SIGMAMICRO)	+= hid-sigmamicro.o
+ obj-$(CONFIG_HID_SMARTJOYPLUS)	+= hid-sjoy.o
+ obj-$(CONFIG_HID_SONY)		+= hid-sony.o
+ obj-$(CONFIG_HID_SPEEDLINK)	+= hid-speedlink.o
++obj-$(CONFIG_HID_SURFACE_KBD_BACKLIGHT)	+= hid-surface-kbd-backlight.o
+ obj-$(CONFIG_HID_STEAM)		+= hid-steam.o
+ obj-$(CONFIG_HID_STEELSERIES)	+= hid-steelseries.o hid-steelseries-arctis.o
+ obj-$(CONFIG_HID_SUNPLUS)	+= hid-sunplus.o
+diff --git a/drivers/hid/spi-hid/Makefile b/drivers/hid/spi-hid/Makefile
+index a605c95e4..83e70547f 100644
+--- a/drivers/hid/spi-hid/Makefile
++++ b/drivers/hid/spi-hid/Makefile
+@@ -7,6 +7,5 @@
+ #
+ # Makefile for the SPI input drivers
+ #
+-CFLAGS_trace.o = -I$(src)
+ obj-$(CONFIG_SPI_HID)	+= spi-hid.o
+-spi-hid-objs := spi-hid-core.o trace.o
++spi-hid-objs := spi-hid-core.o
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index a0f37e2df..920dc47a8 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -1022,6 +1022,17 @@ config SPI_QCOM_GENI
+ 	  This driver can also be built as a module.  If so, the module
+ 	  will be called spi-geni-qcom.
+ 
++config SPI_QCOM_GENI_QSPI
++	tristate "Qualcomm GENI based SPI controller in QSPI mode"
++	depends on QCOM_GENI_SE && QCOM_GPI_DMA
++	help
++	  Second driver for GENI serial engines that only binds to
++	  "qcom,geni-spi-qspi" and drives the engine in QSPI mode over GPI
++	  DMA. Used for the HID-over-SPI touchpad of the Surface Laptop 7.
++
++	  This driver can also be built as a module.  If so, the module
++	  will be called spi-geni-qspi.
++
+ config SPI_S3C64XX
+ 	tristate "Samsung S3C64XX/Exynos SoC series type SPI"
+ 	depends on (PLAT_SAMSUNG || ARCH_S5PV210 || ARCH_EXYNOS || COMPILE_TEST)
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index a18814fbd..a482db9b9 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -123,6 +123,7 @@ spi-pxa2xx-core-y			:= spi-pxa2xx.o spi-pxa2xx-dma.o
+ obj-$(CONFIG_SPI_PXA2XX)		+= spi-pxa2xx-platform.o
+ obj-$(CONFIG_SPI_PXA2XX_PCI)		+= spi-pxa2xx-pci.o
+ obj-$(CONFIG_SPI_QCOM_GENI)		+= spi-geni-qcom.o
++obj-$(CONFIG_SPI_QCOM_GENI_QSPI)	+= spi-geni-qspi.o
+ obj-$(CONFIG_SPI_QCOM_QSPI)		+= spi-qcom-qspi.o
+ obj-$(CONFIG_SPI_QPIC_SNAND)            += spi-qpic-snand.o
+ obj-$(CONFIG_SPI_QUP)			+= spi-qup.o

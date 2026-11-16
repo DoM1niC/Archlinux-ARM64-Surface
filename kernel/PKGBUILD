@@ -1,0 +1,194 @@
+# linux-surface mit den Treibern für den Surface Laptop 7
+# linux-surface with the Surface Laptop 7 drivers built in
+#
+# Grundlage ist das Paket linux-surface (aarch64) von linux-surface
+# (https://github.com/linux-surface/aarch64-packages, Maximilian Luz) mit
+# demselben Quellstand und derselben Konfiguration. Zusätzlich:
+#   - ath12k: rfkill-Pin des Laptop 7 ignorieren (sonst ist das WLAN gesperrt)
+#   - Touchpad/Touchscreen: GPI-DMA mit QSPI, spi-geni-qspi, spi-hid (ELLX,
+#     mit Standby-Fix)
+#   - Tastaturbeleuchtung als LED (hid-surface-kbd-backlight)
+#   - SCMI: Taktstufen nicht als Turbo markieren, wenn die Firmware keine
+#     brauchbare Dauerfrequenz meldet (sonst kein cpufreq für die Cluster 1/2)
+# Die Treiberquellen sind dieselben, die surface-kmods für das unveränderte
+# linux-surface baut (airootfs/usr/share/surface/kmods).
+#
+# Baut nativ auf aarch64 oder per Cross-Compiler (aarch64-linux-gnu-gcc) auf
+# x86_64, siehe scripts/build-kernel.sh.
+
+pkgbase="linux-surface"
+pkgver="7.3.1"
+_surfacerel="1"                 # pkgrel von linux-surface, auf dem wir aufbauen
+pkgrel="${_surfacerel}.1"       # .N = eigene Revision
+
+_pkgdesc="Linux Surface (with Surface Laptop 7 drivers)"
+
+arch=("aarch64")
+url="https://git.3dns.eu/dom1nic/archlinux_arm64_surface"
+license=("GPL-2.0-only")
+options=("!strip" "!debug")
+makedepends=('kmod' 'inetutils' 'bc' 'dtc' 'cpio' 'perl' 'python' 'flex' 'bison'
+             'openssl' 'libelf')
+
+_ref_ksource="26e6eb9531805dfbfb94587cd4d3cc7b241bb048"
+_ref_config_base="2b9d6582700fdec8ab92ed74a96c15e0c13a0435"
+_ref_config_surface="737c5d068e59f00bc0692ad2a969a63359dfb362"
+
+source=(
+    "linux-surface-${_ref_ksource}.tar.gz::https://github.com/linux-surface/kernel/archive/${_ref_ksource}.tar.gz"
+    "base.config::https://raw.githubusercontent.com/archlinuxarm/PKGBUILDs/${_ref_config_base}/core/linux-aarch64/config"
+    "surface.config::https://raw.githubusercontent.com/qzed/aarch64-kernel-configs/${_ref_config_surface}/fragments/spx.config"
+    "overrides.config"
+    "surface-extra.config"
+    "linux-surface.preset"
+    "0001-surface-laptop-7-drivers-kconfig.patch"
+    "0002-arm_scmi-perf-no-turbo-without-sustained-freq.patch"
+)
+sha256sums=('ec71eb4bc9457102cfdde2f76acbdeff8eb013bebc8362b76587936cadc9f7f5'
+            'b76c91d0742197ccd73dfa355ebc534e6938f4fb6af03de33038182b941ac0ae'
+            '39b9618c510107787a2fd3a3e91e6e5dc3652007338db57f0825a6450cc3ceb5'
+            'b35ff35b50b1b461e95c8ef46b34ab11ce922ae2ab9825e7ba923ef960986546'
+            'SKIP'
+            'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65'
+            'SKIP'
+            'SKIP')
+
+# Treiberquellen und WLAN-Patch aus diesem Repository
+_surface="${SURFACE_SHARE:-${startdir}/../airootfs/usr/share/surface}"
+
+# Cross-Compile auf anderen Architekturen
+if [[ "$(uname -m)" != aarch64 ]]; then
+    export ARCH=arm64
+    export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
+fi
+
+# Siehe linux-surface: verhindert ein "+" in der Kernelversion
+export LOCALVERSION=""
+
+_srcname="kernel-${_ref_ksource}"
+
+prepare() {
+    cd "${srcdir}/${_srcname}"
+
+    msg2 "Setting version..."
+    echo "-${pkgrel}" > "localversion.10-pkgrel"
+    echo "${pkgbase#linux}" > "localversion.20-pkgname"
+
+    msg2 "Adding the Surface Laptop 7 drivers..."
+    local km="${_surface}/kmods"
+    install -m644 "${km}/sl7-touchpad/dma/qcom/gpi.c" drivers/dma/qcom/gpi.c
+    install -m644 "${km}/sl7-touchpad/dma/qcom/qcom-gpi-dma-qspi.h" include/linux/dma/qcom-gpi-dma.h
+    install -m644 "${km}/sl7-touchpad/qspi/spi-geni-qspi.c" drivers/spi/spi-geni-qspi.c
+    sed -i 's|#include "qcom-gpi-dma-qspi.h"|#include <linux/dma/qcom-gpi-dma.h>|' \
+        drivers/dma/qcom/gpi.c drivers/spi/spi-geni-qspi.c
+    install -m644 "${km}/sl7-touchpad/spi-hid/spi-hid-core.c" \
+                  "${km}/sl7-touchpad/spi-hid/spi-hid-core.h" drivers/hid/spi-hid/
+    install -m644 "${km}/sl7-kbd-backlight/hid-surface-kbd-backlight.c" drivers/hid/
+
+    msg2 "Applying patches..."
+    patch -Np1 < "${_surface}/patches/ath12k-sl7-rfkill.patch"
+    local p
+    for p in "${srcdir}"/0*.patch; do
+        msg2 "  $(basename "$p")"
+        patch -Np1 < "$p"
+    done
+
+    msg2 "Configuring..."
+    ./scripts/kconfig/merge_config.sh -m "${srcdir}/base.config" "${srcdir}/surface.config" \
+        "${srcdir}/overrides.config" "${srcdir}/surface-extra.config"
+    make olddefconfig
+
+    local opt
+    for opt in QCOM_GPI_DMA SPI_QCOM_GENI_QSPI SPI_HID HID_SURFACE_KBD_BACKLIGHT ATH12K ARM_SCMI_CPUFREQ; do
+        grep -Eq "^CONFIG_${opt}=[ym]" .config || { error "CONFIG_${opt} ist nicht gesetzt"; return 1; }
+    done
+}
+
+build() {
+    cd "${srcdir}/${_srcname}"
+
+    msg2 "Preparing kernel build..."
+    make prepare
+    make -s kernelrelease > version
+
+    msg2 "Building ${pkgbase} version $(<version)..."
+    unset LDFLAGS
+    unset CFLAGS
+
+    make all modules dtbs
+}
+
+_package() {
+    pkgdesc="${_pkgdesc} kernel and modules"
+    depends=("coreutils" "linux-firmware" "kmod" "mkinitcpio>=0.7")
+    optdepends=("wireless-regdb: to set the correct wireless channels of your country")
+    install="${pkgbase}.install"
+
+    cd "${srcdir}/${_srcname}"
+
+    local kernver="$(<version)"
+    local modulesdir="${pkgdir}/usr/lib/modules/${kernver}"
+
+    msg2 "Installing boot image..."
+    # systemd expects to find the kernel here to allow hibernation
+    install -Dm644 "$(make -s image_name)" "${modulesdir}/vmlinuz"
+
+    # Used by mkinitcpio to name the kernel
+    echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
+
+    # surface-kmods erkennt daran, dass die Zusatztreiber schon enthalten sind
+    printf '%s\n' wifi touchpad kbd scmi-turbo |
+        install -Dm644 /dev/stdin "${modulesdir}/surface-drivers"
+
+    msg2 "Installing modules..."
+    make INSTALL_MOD_PATH="${pkgdir}/usr" INSTALL_MOD_STRIP=1 DEPMOD=/doesnt/exist modules_install
+
+    # remove build link
+    rm -f "${modulesdir}"/build
+
+    msg2 "Installing dtbs..."
+    make INSTALL_DTBS_PATH="${modulesdir}/dtb" dtbs_install
+    mkdir -p "${pkgdir}/boot/dtb" && cp -r "${modulesdir}/dtb" "${pkgdir}/boot/dtb/${pkgbase}"
+
+    msg2 "Installing mkinitcpio preset..."
+    local _subst="
+        s|%PKGBASE%|${pkgbase}|g
+        s|%KERNVER%|${kernver}|g
+    "
+    sed "${_subst}" "${srcdir}/${pkgbase}.preset" |
+        install -Dm644 /dev/stdin "${pkgdir}/etc/mkinitcpio.d/${pkgbase}.preset"
+}
+
+_package-headers() {
+    pkgdesc="${_pkgdesc} kernel header files and scripts for building external modules"
+
+    cd "${srcdir}/${_srcname}"
+
+    local builddir="${pkgdir}/usr/lib/modules/$(<version)/build"
+
+    # install-extmod-build stellt alles für externe Module zusammen und baut
+    # beim Cross-Compile die Hilfsprogramme (fixdep, modpost, ...) für das
+    # Zielsystem neu; statisch gelinkt, damit sie nicht von der glibc-Version
+    # des Cross-Compilers abhängen.
+    msg2 "Installing build files..."
+    make run-command HOSTLDFLAGS="${CROSS_COMPILE:+-static}" \
+        KBUILD_RUN_COMMAND="MAKE=make ${PWD}/scripts/package/install-extmod-build ${builddir}"
+
+    install -Dt "${builddir}" -m644 .config System.map version \
+        localversion.10-pkgrel localversion.20-pkgname
+
+    # Kconfig-Dateien (von manchen DKMS-Paketen ausgewertet)
+    find . -name 'Kconfig*' -not -path './Documentation/*' -exec install -Dm644 {} "${builddir}/{}" \;
+
+    msg2 "Adding symlink..."
+    mkdir -p "${pkgdir}/usr/src"
+    ln -sr "${builddir}" "${pkgdir}/usr/src/${pkgbase}"
+}
+
+pkgname=("${pkgbase}" "${pkgbase}-headers")
+for _p in "${pkgname[@]}"; do
+    eval "package_${_p}() {
+        $(declare -f "_package${_p#${pkgbase}}")
+        _package${_p#${pkgbase}}
+    }"
+done

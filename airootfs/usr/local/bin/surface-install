@@ -179,7 +179,12 @@ pkgs+=(dtc)
 # Kamera: libcamera (Software-ISP) und die PipeWire-Anbindung für Browser,
 # Videotelefonie usw.
 [[ " $overlays " == *" sl7-camera "* ]] && pkgs+=(libcamera libcamera-tools pipewire-libcamera)
-(( needs_kmods )) && pkgs+=(linux-surface-headers base-devel git curl)
+# Kommt der Kernel aus dem Repository surface-kernel (vor [linux-surface]),
+# enthält er die Zusatztreiber bereits; Header und Compiler sind dann nicht
+# nötig.
+own_kernel=0
+grep -q '^\[surface-kernel\]' /etc/pacman.conf && own_kernel=1
+(( needs_kmods && ! own_kernel )) && pkgs+=(linux-surface-headers base-devel git curl)
 # iptsd verarbeitet die Rohdaten von Touchpad/Touchscreen. Es kommt aus dem
 # Omarchy-Repository, das es bei Updates von fmt/spdlog neu baut; der
 # Schlüsselbund dafür wird mitinstalliert (pacstrap übernimmt den Schlüssel aus
@@ -209,6 +214,21 @@ cp /etc/vconsole.conf "$target/etc/vconsole.conf"
 # Gebaut wird das Initramfs weiter unten, nach der Firmware-Übernahme: Die
 # GPU-Firmware aus Windows muss mit hinein.
 
+# Eigener Kernel mit den Treibern für den Laptop 7: vor [linux-surface], damit
+# pacman linux-surface von dort nimmt.
+if (( own_kernel )) && ! grep -q '^\[surface-kernel\]' "$target/etc/pacman.conf"; then
+    kblock="$(printf '%s\n' \
+        '# linux-surface with the Surface Laptop 7 drivers built in (https://git.3dns.eu/dom1nic/archlinux_arm64_surface)' \
+        '[surface-kernel]' \
+        "$(sed -n '/^\[surface-kernel\]/,/^$/{/^Server/p}' /etc/pacman.conf)")"
+    if grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
+        KB="$kblock" awk '/^\[linux-surface\]/ { print ENVIRON["KB"]; print "" } { print }' \
+            "$target/etc/pacman.conf" > "$target/etc/pacman.conf.new"
+        mv "$target/etc/pacman.conf.new" "$target/etc/pacman.conf"
+    else
+        printf '\n%s\n' "$kblock" >> "$target/etc/pacman.conf"
+    fi
+fi
 if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
     cat >> "$target/etc/pacman.conf" <<EOF
 

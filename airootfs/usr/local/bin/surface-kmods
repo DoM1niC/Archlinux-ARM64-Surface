@@ -14,6 +14,10 @@
 # kbd       Tastaturbeleuchtung als LED-Gerät (surface::kbd_backlight), damit
 #           der Desktop sie anzeigen und einstellen kann.
 #
+# Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) enthält all
+# das schon (Datei surface-drivers im Modulordner); für ihn baut das Skript
+# nichts.
+#
 # Module unter updates/ haben Vorrang vor denen des Kernelpakets. Nach einem
 # Kernel-Update müssen sie neu gebaut werden; das erledigt der pacman-Hook
 # 95-surface-kernel.hook über surface-kernel-update.
@@ -97,8 +101,9 @@ case "$only" in ""|wifi|touchpad|kbd) ;; *) die "--only: wifi | touchpad | kbd" 
 
 if (( all )) || (( remove && ${#kernels[@]} == 0 )); then
     for d in /usr/lib/modules/*/; do
-        # nur linux-surface-Kernel – andere Kernel bringen eigene Treiber mit
-        [[ "$(basename "$d")" == *-surface ]] && kernels+=("$(basename "$d")")
+        # nur linux-surface-Kernel – andere Kernel bringen eigene Treiber mit;
+        # ohne vmlinuz ist es der Rest eines entfernten Kernels
+        [[ "$(basename "$d")" == *-surface && -e "$d/vmlinuz" ]] && kernels+=("$(basename "$d")")
     done
 fi
 [[ ${#kernels[@]} -gt 0 ]] || kernels=("$(uname -r)")
@@ -129,6 +134,13 @@ have_all() { # kernel modul...
 build_for() { # kernel-release
     local k="$1" moddir="/usr/lib/modules/$1" pkgver ref tmp src m
     local do_wifi=0 do_touchpad=0 do_kbd=0
+
+    # Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) enthält
+    # die Treiber bereits; Module unter updates/ würden sie nur verdecken.
+    if [[ -e "$moddir/surface-drivers" ]]; then
+        msg "$k: $(t 'Treiber sind im Kernel enthalten, nichts zu bauen' 'drivers are part of this kernel, nothing to build')"
+        return 0
+    fi
 
     [[ -z "$only" || "$only" == wifi ]] && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
     [[ -z "$only" || "$only" == touchpad ]] && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1

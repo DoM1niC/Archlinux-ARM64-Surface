@@ -5,6 +5,16 @@
 # the devicetree.
 rc=0
 /usr/local/bin/surface-dtb-update || rc=1
+
+# Reste ersetzter Kernel entfernen: Im Modulordner eines alten Kernels bleiben
+# nach dem Update nur die Zusatzmodule (updates/) und die Dateien von depmod.
+# Remove leftovers of replaced kernels (only updates/ and depmod files remain).
+for d in /usr/lib/modules/*-surface; do
+    [[ -d "$d" && ! -e "$d/vmlinuz" ]] || continue
+    [[ -z "$(find "$d" -mindepth 1 -maxdepth 1 ! -name updates ! -name 'modules.*' -print -quit)" ]] || continue
+    rm -rf "$d"
+done
+
 # shellcheck disable=SC1091
 [[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
 if [[ "${SURFACE_KMODS:-}" == yes ]]; then

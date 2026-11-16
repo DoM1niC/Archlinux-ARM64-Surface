@@ -1,0 +1,68 @@
+From d4dfefc6b85687f690452aa321debc1c89a8bc8a Mon Sep 17 00:00:00 2001
+From: surface <surface@localhost>
+Date: Mon, 16 Nov 2026 21:14:53 +0100
+Subject: [PATCH 2/2] firmware: arm_scmi: perf: no turbo OPPs without a usable
+ sustained frequency
+
+On the Snapdragon X1E (Surface Laptop 7) the firmware reports a sustained
+frequency that lies below every OPP of CPU clusters 1 and 2. All OPPs
+are then marked as turbo, cpufreq_frequency_table_cpuinfo() fails with
+-EINVAL and these clusters get no cpufreq policy at all.
+
+If no OPP is at or below the reported sustained frequency, do not mark
+any OPP as turbo.
+---
+ drivers/firmware/arm_scmi/perf.c | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/firmware/arm_scmi/perf.c b/drivers/firmware/arm_scmi/perf.c
+index 4583d02be..3ce8f8f3e 100644
+--- a/drivers/firmware/arm_scmi/perf.c
++++ b/drivers/firmware/arm_scmi/perf.c
+@@ -865,7 +865,7 @@ static int scmi_dvfs_device_opps_add(const struct scmi_protocol_handle *ph,
+ 				     struct device *dev, u32 domain)
+ {
+ 	int idx, ret;
+-	unsigned long freq;
++	unsigned long freq, sustained;
+ 	struct dev_pm_opp_data data = {};
+ 	struct perf_dom_info *dom;
+ 
+@@ -873,6 +873,28 @@ static int scmi_dvfs_device_opps_add(const struct scmi_protocol_handle *ph,
+ 	if (IS_ERR(dom))
+ 		return PTR_ERR(dom);
+ 
++	/*
++	 * Some firmware reports no sustained frequency (0) or one below the
++	 * lowest OPP, e.g. Qualcomm X1E for two of its three CPU clusters.
++	 * Every OPP would then be turbo, and cpufreq would end up without a
++	 * usable frequency table and no policy for these CPUs. Treat no OPP
++	 * as turbo in that case.
++	 */
++	sustained = dom->sustained_freq_khz * 1000UL;
++	for (idx = 0; idx < dom->opp_count; idx++) {
++		if (!dom->level_indexing_mode)
++			freq = dom->opp[idx].perf * dom->mult_factor;
++		else
++			freq = dom->opp[idx].indicative_freq * dom->mult_factor;
++		if (freq <= sustained)
++			break;
++	}
++	if (dom->opp_count && idx == dom->opp_count) {
++		dev_info(dev, "[%d][%s]: sustained frequency %u kHz below all OPPs, not marking any as turbo\n",
++			 domain, dom->info.name, dom->sustained_freq_khz);
++		sustained = ULONG_MAX;
++	}
++
+ 	for (idx = 0; idx < dom->opp_count; idx++) {
+ 		if (!dom->level_indexing_mode)
+ 			freq = dom->opp[idx].perf * dom->mult_factor;
+@@ -880,7 +902,7 @@ static int scmi_dvfs_device_opps_add(const struct scmi_protocol_handle *ph,
+ 			freq = dom->opp[idx].indicative_freq * dom->mult_factor;
+ 
+ 		/* All OPPs above the sustained frequency are treated as turbo */
+-		data.turbo = freq > dom->sustained_freq_khz * 1000UL;
++		data.turbo = freq > sustained;
+ 
+ 		data.level = dom->opp[idx].perf;
+ 		data.freq = freq;
