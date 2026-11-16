@@ -1,0 +1,350 @@
+// Surface Laptop 7: front camera (OmniVision OV02C10 on CCI1, CSIPHY4).
+//
+// The linux-surface devicetree describes neither CAMSS nor the CCI buses of
+// the X1E80100. This overlay adds them in the form the kernel's CAMSS binding
+// expects (CSIPHYs inside the camss node) and connects the sensor.
+//
+// Sources:
+//  - CAMSS/CCI nodes and CCI pin states: omarchy-pkgs, linux-omarchy-aarch64
+//    patch 2161 "arm64: dts: qcom: hamoa: add camera subsystem nodes"
+//    (Brandon Williams).
+//  - Sensor, PM8010 rails, MCLK/reset pins: omarchy-pkgs, linux-omarchy-dtbs
+//    patch 0031 "arm64: dts: qcom: romulus15: add the front camera" (Felipe
+//    Infante de Castro), based on Oliver White's romulus OV02C10 patch;
+//    supplies, reset GPIO and I2C address from the device's ACPI tables
+//    (CAMF, OVTI02C1 / MSHW0470). The ELLX kernel uses the same wiring for
+//    both sizes in its shared romulus.dtsi.
+//
+// This file goes through the C preprocessor (for the dt-bindings constants)
+// and is compiled to sl7-camera.dtbo when the ISO is built.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/qcom,x1e80100-camcc.h>
+#include <dt-bindings/clock/qcom,x1e80100-gcc.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interconnect/qcom,icc.h>
+#include <dt-bindings/interconnect/qcom,x1e80100-rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	cci1: cci@ac16000 {
+		compatible = "qcom,x1e80100-cci", "qcom,msm8996-cci";
+		reg = <0 0x0ac16000 0 0x1000>;
+		interrupts = <GIC_SPI 271 IRQ_TYPE_EDGE_RISING>;
+		power-domains = <&camcc CAM_CC_TITAN_TOP_GDSC>;
+
+		clocks = <&camcc CAM_CC_CAMNOC_AXI_NRT_CLK>,
+			 <&camcc CAM_CC_CPAS_AHB_CLK>,
+			 <&camcc CAM_CC_CCI_1_CLK>;
+		clock-names = "camnoc_axi",
+			      "cpas_ahb",
+			      "cci";
+
+		pinctrl-0 = <&cci1_0_default>, <&cci1_1_default>;
+		pinctrl-1 = <&cci1_0_sleep>, <&cci1_1_sleep>;
+		pinctrl-names = "default", "sleep";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		status = "okay";
+
+		cci1_i2c0: i2c-bus@0 {
+			reg = <0>;
+			clock-frequency = <1000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		cci1_i2c1: i2c-bus@1 {
+			reg = <1>;
+			clock-frequency = <1000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* Front camera: OmniVision OV02C10 (ACPI OVTI02C1, MSHW0470) */
+			camera@36 {
+				compatible = "ovti,ov02c10";
+				reg = <0x36>;
+
+				reset-gpios = <&tlmm 237 GPIO_ACTIVE_LOW>;
+				pinctrl-0 = <&cam_rgb_default>;
+				pinctrl-names = "default";
+
+				clocks = <&camcc CAM_CC_MCLK4_CLK>;
+				assigned-clocks = <&camcc CAM_CC_MCLK4_CLK>;
+				assigned-clock-rates = <19200000>;
+
+				orientation = <0>;	/* front facing */
+
+				avdd-supply = <&vreg_l5m_2p8>;
+				dvdd-supply = <&vreg_l1m_1p2>;
+				dovdd-supply = <&vreg_l3m_1p8>;
+
+				port {
+					ov02c10_ep: endpoint {
+						data-lanes = <1 2>;
+						link-frequencies = /bits/ 64 <400000000>;
+						remote-endpoint = <&csiphy4_ep>;
+					};
+				};
+			};
+		};
+	};
+
+	camss: isp@acb7000 {
+		compatible = "qcom,x1e80100-camss";
+
+		reg = <0 0x0acb7000 0 0x2000>,
+		      <0 0x0acb9000 0 0x2000>,
+		      <0 0x0acbb000 0 0x2000>,
+		      <0 0x0acc6000 0 0x1000>,
+		      <0 0x0acca000 0 0x1000>,
+		      <0 0x0acb6000 0 0x1000>,
+		      <0 0x0ace4000 0 0x2000>,
+		      <0 0x0ace6000 0 0x2000>,
+		      <0 0x0ace8000 0 0x2000>,
+		      <0 0x0acec000 0 0x4000>,
+		      <0 0x0acf6000 0 0x1000>,
+		      <0 0x0acf7000 0 0x1000>,
+		      <0 0x0acf8000 0 0x1000>,
+		      <0 0x0ac62000 0 0x4000>,
+		      <0 0x0ac71000 0 0x4000>,
+		      <0 0x0acc7000 0 0x2000>,
+		      <0 0x0accb000 0 0x2000>;
+		reg-names = "csid0",
+			    "csid1",
+			    "csid2",
+			    "csid_lite0",
+			    "csid_lite1",
+			    "csid_wrapper",
+			    "csiphy0",
+			    "csiphy1",
+			    "csiphy2",
+			    "csiphy4",
+			    "csitpg0",
+			    "csitpg1",
+			    "csitpg2",
+			    "vfe0",
+			    "vfe1",
+			    "vfe_lite0",
+			    "vfe_lite1";
+
+		clocks = <&camcc CAM_CC_CAMNOC_AXI_NRT_CLK>,
+			 <&camcc CAM_CC_CAMNOC_AXI_RT_CLK>,
+			 <&camcc CAM_CC_CORE_AHB_CLK>,
+			 <&camcc CAM_CC_CPAS_AHB_CLK>,
+			 <&camcc CAM_CC_CPAS_FAST_AHB_CLK>,
+			 <&camcc CAM_CC_CPAS_IFE_0_CLK>,
+			 <&camcc CAM_CC_CPAS_IFE_1_CLK>,
+			 <&camcc CAM_CC_CPAS_IFE_LITE_CLK>,
+			 <&camcc CAM_CC_CPHY_RX_CLK_SRC>,
+			 <&camcc CAM_CC_CSID_CLK>,
+			 <&camcc CAM_CC_CSID_CSIPHY_RX_CLK>,
+			 <&camcc CAM_CC_CSIPHY0_CLK>,
+			 <&camcc CAM_CC_CSI0PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSIPHY1_CLK>,
+			 <&camcc CAM_CC_CSI1PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSIPHY2_CLK>,
+			 <&camcc CAM_CC_CSI2PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSIPHY4_CLK>,
+			 <&camcc CAM_CC_CSI4PHYTIMER_CLK>,
+			 <&gcc GCC_CAMERA_HF_AXI_CLK>,
+			 <&gcc GCC_CAMERA_SF_AXI_CLK>,
+			 <&camcc CAM_CC_IFE_0_CLK>,
+			 <&camcc CAM_CC_IFE_0_FAST_AHB_CLK>,
+			 <&camcc CAM_CC_IFE_1_CLK>,
+			 <&camcc CAM_CC_IFE_1_FAST_AHB_CLK>,
+			 <&camcc CAM_CC_IFE_LITE_CLK>,
+			 <&camcc CAM_CC_IFE_LITE_AHB_CLK>,
+			 <&camcc CAM_CC_IFE_LITE_CPHY_RX_CLK>,
+			 <&camcc CAM_CC_IFE_LITE_CSID_CLK>;
+		clock-names = "camnoc_nrt_axi",
+			      "camnoc_rt_axi",
+			      "core_ahb",
+			      "cpas_ahb",
+			      "cpas_fast_ahb",
+			      "cpas_vfe0",
+			      "cpas_vfe1",
+			      "cpas_vfe_lite",
+			      "cphy_rx_clk_src",
+			      "csid",
+			      "csid_csiphy_rx",
+			      "csiphy0",
+			      "csiphy0_timer",
+			      "csiphy1",
+			      "csiphy1_timer",
+			      "csiphy2",
+			      "csiphy2_timer",
+			      "csiphy4",
+			      "csiphy4_timer",
+			      "gcc_axi_hf",
+			      "gcc_axi_sf",
+			      "vfe0",
+			      "vfe0_fast_ahb",
+			      "vfe1",
+			      "vfe1_fast_ahb",
+			      "vfe_lite",
+			      "vfe_lite_ahb",
+			      "vfe_lite_cphy_rx",
+			      "vfe_lite_csid";
+
+		interrupts = <GIC_SPI 464 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 466 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 431 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 468 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 359 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 477 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 478 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 479 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 122 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 465 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 467 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 469 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 360 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "csid0",
+				  "csid1",
+				  "csid2",
+				  "csid_lite0",
+				  "csid_lite1",
+				  "csiphy0",
+				  "csiphy1",
+				  "csiphy2",
+				  "csiphy4",
+				  "vfe0",
+				  "vfe1",
+				  "vfe_lite0",
+				  "vfe_lite1";
+
+		interconnects = <&gem_noc MASTER_APPSS_PROC QCOM_ICC_TAG_ACTIVE_ONLY
+				 &config_noc SLAVE_CAMERA_CFG QCOM_ICC_TAG_ACTIVE_ONLY>,
+				<&mmss_noc MASTER_CAMNOC_HF QCOM_ICC_TAG_ALWAYS
+				 &mc_virt SLAVE_EBI1 QCOM_ICC_TAG_ALWAYS>,
+				<&mmss_noc MASTER_CAMNOC_SF QCOM_ICC_TAG_ALWAYS
+				 &mc_virt SLAVE_EBI1 QCOM_ICC_TAG_ALWAYS>,
+				<&mmss_noc MASTER_CAMNOC_ICP QCOM_ICC_TAG_ALWAYS
+				 &mc_virt SLAVE_EBI1 QCOM_ICC_TAG_ALWAYS>;
+		interconnect-names = "ahb",
+				     "hf_mnoc",
+				     "sf_mnoc",
+				     "sf_icp_mnoc";
+
+		iommus = <&apps_smmu 0x800 0x60>,
+			 <&apps_smmu 0x820 0x60>,
+			 <&apps_smmu 0x840 0x60>,
+			 <&apps_smmu 0x860 0x60>,
+			 <&apps_smmu 0x18a0 0x0>;
+
+		power-domains = <&camcc CAM_CC_IFE_0_GDSC>,
+				<&camcc CAM_CC_IFE_1_GDSC>,
+				<&camcc CAM_CC_TITAN_TOP_GDSC>;
+		power-domain-names = "ife0",
+				     "ife1",
+				     "top";
+
+		vdd-csiphy-0p8-supply = <&vreg_l2c>;
+		vdd-csiphy-1p2-supply = <&vreg_l1c>;
+
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* port@3 is CSIPHY4: the front camera, on two data lanes */
+			port@3 {
+				reg = <3>;
+
+				csiphy4_ep: endpoint {
+					clock-lanes = <7>;
+					data-lanes = <0 1>;
+					remote-endpoint = <&ov02c10_ep>;
+				};
+			};
+		};
+	};
+};
+
+&apps_rsc {
+	/* PM8010 "m": camera PMIC. Only the front camera's rails are declared. */
+	regulators-8 {
+		compatible = "qcom,pm8010-rpmh-regulators";
+		qcom,pmic-id = "m";
+
+		vdd-l1-l2-supply = <&vreg_s5j>;
+		vdd-l3-l4-supply = <&vreg_s4c>;
+
+		vreg_l1m_1p2: ldo1 {
+			regulator-name = "vreg_l1m_1p2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vreg_l3m_1p8: ldo3 {
+			regulator-name = "vreg_l3m_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vreg_l5m_2p8: ldo5 {
+			regulator-name = "vreg_l5m_2p8";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+};
+
+&tlmm {
+	cci1_0_default: cci1-0-default-state {
+		/* SDA, SCL */
+		pins = "gpio105", "gpio106";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-up = <2200>;
+	};
+
+	cci1_0_sleep: cci1-0-sleep-state {
+		/* SDA, SCL */
+		pins = "gpio105", "gpio106";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cci1_1_default: cci1-1-default-state {
+		/* SDA, SCL */
+		pins = "gpio235", "gpio236";
+		function = "aon_cci";
+		drive-strength = <2>;
+		bias-pull-up = <2200>;
+	};
+
+	cci1_1_sleep: cci1-1-sleep-state {
+		/* SDA, SCL */
+		pins = "gpio235", "gpio236";
+		function = "aon_cci";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cam_rgb_default: cam-rgb-default-state {
+		mclk-pins {
+			pins = "gpio100";
+			function = "cam_aon";
+			drive-strength = <16>;
+			bias-disable;
+		};
+
+		reset-n-pins {
+			pins = "gpio237";
+			function = "gpio";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};

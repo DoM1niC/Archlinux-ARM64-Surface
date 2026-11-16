@@ -171,6 +171,9 @@ if [[ -n "$device" && -r "$SHARE/overlays.conf" ]]; then
     [[ "$(awk -F'|' -v id="$device" '$1 == id { print $3 }' "$SHARE/overlays.conf")" == yes ]] && needs_kmods=1
 fi
 pkgs+=(dtc)
+# Kamera: libcamera (Software-ISP) und die PipeWire-Anbindung für Browser,
+# Videotelefonie usw.
+[[ " $overlays " == *" sl7-camera "* ]] && pkgs+=(libcamera libcamera-tools pipewire-libcamera)
 (( needs_kmods )) && pkgs+=(linux-surface-headers base-devel git curl)
 # iptsd verarbeitet die Rohdaten von Touchpad/Touchscreen (lokales Repo des ISOs)
 if [[ -n "$overlays" ]] && grep -q "^\[surface-local\]" /etc/pacman.conf \

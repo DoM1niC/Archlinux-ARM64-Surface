@@ -1,0 +1,283 @@
+// GENERIERT aus overlays-src/sl7-camera.dts.in mit scripts/gen-overlays.sh
+// (dt-bindings von linux-surface/kernel 26e6eb953180) – nicht von Hand ändern.
+// Quellen und Erläuterungen stehen in der .dts.in-Datei.
+/dts-v1/;
+/plugin/;
+&soc {
+ cci1: cci@ac16000 {
+  compatible = "qcom,x1e80100-cci", "qcom,msm8996-cci";
+  reg = <0 0x0ac16000 0 0x1000>;
+  interrupts = <0 271 1>;
+  power-domains = <&camcc 5>;
+  clocks = <&camcc 4>,
+    <&camcc 14>,
+    <&camcc 11>;
+  clock-names = "camnoc_axi",
+         "cpas_ahb",
+         "cci";
+  pinctrl-0 = <&cci1_0_default>, <&cci1_1_default>;
+  pinctrl-1 = <&cci1_0_sleep>, <&cci1_1_sleep>;
+  pinctrl-names = "default", "sleep";
+  #address-cells = <1>;
+  #size-cells = <0>;
+  status = "okay";
+  cci1_i2c0: i2c-bus@0 {
+   reg = <0>;
+   clock-frequency = <1000000>;
+   #address-cells = <1>;
+   #size-cells = <0>;
+  };
+  cci1_i2c1: i2c-bus@1 {
+   reg = <1>;
+   clock-frequency = <1000000>;
+   #address-cells = <1>;
+   #size-cells = <0>;
+   camera@36 {
+    compatible = "ovti,ov02c10";
+    reg = <0x36>;
+    reset-gpios = <&tlmm 237 1>;
+    pinctrl-0 = <&cam_rgb_default>;
+    pinctrl-names = "default";
+    clocks = <&camcc 79>;
+    assigned-clocks = <&camcc 79>;
+    assigned-clock-rates = <19200000>;
+    orientation = <0>;
+    avdd-supply = <&vreg_l5m_2p8>;
+    dvdd-supply = <&vreg_l1m_1p2>;
+    dovdd-supply = <&vreg_l3m_1p8>;
+    port {
+     ov02c10_ep: endpoint {
+      data-lanes = <1 2>;
+      link-frequencies = /bits/ 64 <400000000>;
+      remote-endpoint = <&csiphy4_ep>;
+     };
+    };
+   };
+  };
+ };
+ camss: isp@acb7000 {
+  compatible = "qcom,x1e80100-camss";
+  reg = <0 0x0acb7000 0 0x2000>,
+        <0 0x0acb9000 0 0x2000>,
+        <0 0x0acbb000 0 0x2000>,
+        <0 0x0acc6000 0 0x1000>,
+        <0 0x0acca000 0 0x1000>,
+        <0 0x0acb6000 0 0x1000>,
+        <0 0x0ace4000 0 0x2000>,
+        <0 0x0ace6000 0 0x2000>,
+        <0 0x0ace8000 0 0x2000>,
+        <0 0x0acec000 0 0x4000>,
+        <0 0x0acf6000 0 0x1000>,
+        <0 0x0acf7000 0 0x1000>,
+        <0 0x0acf8000 0 0x1000>,
+        <0 0x0ac62000 0 0x4000>,
+        <0 0x0ac71000 0 0x4000>,
+        <0 0x0acc7000 0 0x2000>,
+        <0 0x0accb000 0 0x2000>;
+  reg-names = "csid0",
+       "csid1",
+       "csid2",
+       "csid_lite0",
+       "csid_lite1",
+       "csid_wrapper",
+       "csiphy0",
+       "csiphy1",
+       "csiphy2",
+       "csiphy4",
+       "csitpg0",
+       "csitpg1",
+       "csitpg2",
+       "vfe0",
+       "vfe1",
+       "vfe_lite0",
+       "vfe_lite1";
+  clocks = <&camcc 4>,
+    <&camcc 5>,
+    <&camcc 13>,
+    <&camcc 14>,
+    <&camcc 16>,
+    <&camcc 17>,
+    <&camcc 18>,
+    <&camcc 19>,
+    <&camcc 22>,
+    <&camcc 35>,
+    <&camcc 37>,
+    <&camcc 38>,
+    <&camcc 23>,
+    <&camcc 39>,
+    <&camcc 25>,
+    <&camcc 40>,
+    <&camcc 27>,
+    <&camcc 42>,
+    <&camcc 31>,
+    <&gcc 17>,
+    <&gcc 18>,
+    <&camcc 49>,
+    <&camcc 52>,
+    <&camcc 53>,
+    <&camcc 56>,
+    <&camcc 58>,
+    <&camcc 57>,
+    <&camcc 60>,
+    <&camcc 61>;
+  clock-names = "camnoc_nrt_axi",
+         "camnoc_rt_axi",
+         "core_ahb",
+         "cpas_ahb",
+         "cpas_fast_ahb",
+         "cpas_vfe0",
+         "cpas_vfe1",
+         "cpas_vfe_lite",
+         "cphy_rx_clk_src",
+         "csid",
+         "csid_csiphy_rx",
+         "csiphy0",
+         "csiphy0_timer",
+         "csiphy1",
+         "csiphy1_timer",
+         "csiphy2",
+         "csiphy2_timer",
+         "csiphy4",
+         "csiphy4_timer",
+         "gcc_axi_hf",
+         "gcc_axi_sf",
+         "vfe0",
+         "vfe0_fast_ahb",
+         "vfe1",
+         "vfe1_fast_ahb",
+         "vfe_lite",
+         "vfe_lite_ahb",
+         "vfe_lite_cphy_rx",
+         "vfe_lite_csid";
+  interrupts = <0 464 1>,
+        <0 466 1>,
+        <0 431 1>,
+        <0 468 1>,
+        <0 359 1>,
+        <0 477 1>,
+        <0 478 1>,
+        <0 479 1>,
+        <0 122 1>,
+        <0 465 1>,
+        <0 467 1>,
+        <0 469 1>,
+        <0 360 1>;
+  interrupt-names = "csid0",
+      "csid1",
+      "csid2",
+      "csid_lite0",
+      "csid_lite1",
+      "csiphy0",
+      "csiphy1",
+      "csiphy2",
+      "csiphy4",
+      "vfe0",
+      "vfe1",
+      "vfe_lite0",
+      "vfe_lite1";
+  interconnects = <&gem_noc 3 ((1 << 0) | (1 << 1))
+     &config_noc 5 ((1 << 0) | (1 << 1))>,
+    <&mmss_noc 1 ((1 << 0) | (1 << 1) | (1 << 2))
+     &mc_virt 1 ((1 << 0) | (1 << 1) | (1 << 2))>,
+    <&mmss_noc 3 ((1 << 0) | (1 << 1) | (1 << 2))
+     &mc_virt 1 ((1 << 0) | (1 << 1) | (1 << 2))>,
+    <&mmss_noc 2 ((1 << 0) | (1 << 1) | (1 << 2))
+     &mc_virt 1 ((1 << 0) | (1 << 1) | (1 << 2))>;
+  interconnect-names = "ahb",
+         "hf_mnoc",
+         "sf_mnoc",
+         "sf_icp_mnoc";
+  iommus = <&apps_smmu 0x800 0x60>,
+    <&apps_smmu 0x820 0x60>,
+    <&apps_smmu 0x840 0x60>,
+    <&apps_smmu 0x860 0x60>,
+    <&apps_smmu 0x18a0 0x0>;
+  power-domains = <&camcc 1>,
+    <&camcc 2>,
+    <&camcc 5>;
+  power-domain-names = "ife0",
+         "ife1",
+         "top";
+  vdd-csiphy-0p8-supply = <&vreg_l2c>;
+  vdd-csiphy-1p2-supply = <&vreg_l1c>;
+  status = "okay";
+  ports {
+   #address-cells = <1>;
+   #size-cells = <0>;
+   port@3 {
+    reg = <3>;
+    csiphy4_ep: endpoint {
+     clock-lanes = <7>;
+     data-lanes = <0 1>;
+     remote-endpoint = <&ov02c10_ep>;
+    };
+   };
+  };
+ };
+};
+&apps_rsc {
+ regulators-8 {
+  compatible = "qcom,pm8010-rpmh-regulators";
+  qcom,pmic-id = "m";
+  vdd-l1-l2-supply = <&vreg_s5j>;
+  vdd-l3-l4-supply = <&vreg_s4c>;
+  vreg_l1m_1p2: ldo1 {
+   regulator-name = "vreg_l1m_1p2";
+   regulator-min-microvolt = <1200000>;
+   regulator-max-microvolt = <1200000>;
+   regulator-initial-mode = <3>;
+  };
+  vreg_l3m_1p8: ldo3 {
+   regulator-name = "vreg_l3m_1p8";
+   regulator-min-microvolt = <1800000>;
+   regulator-max-microvolt = <1800000>;
+   regulator-initial-mode = <3>;
+  };
+  vreg_l5m_2p8: ldo5 {
+   regulator-name = "vreg_l5m_2p8";
+   regulator-min-microvolt = <2800000>;
+   regulator-max-microvolt = <2800000>;
+   regulator-initial-mode = <3>;
+  };
+ };
+};
+&tlmm {
+ cci1_0_default: cci1-0-default-state {
+  pins = "gpio105", "gpio106";
+  function = "cci_i2c";
+  drive-strength = <2>;
+  bias-pull-up = <2200>;
+ };
+ cci1_0_sleep: cci1-0-sleep-state {
+  pins = "gpio105", "gpio106";
+  function = "cci_i2c";
+  drive-strength = <2>;
+  bias-pull-down;
+ };
+ cci1_1_default: cci1-1-default-state {
+  pins = "gpio235", "gpio236";
+  function = "aon_cci";
+  drive-strength = <2>;
+  bias-pull-up = <2200>;
+ };
+ cci1_1_sleep: cci1-1-sleep-state {
+  pins = "gpio235", "gpio236";
+  function = "aon_cci";
+  drive-strength = <2>;
+  bias-pull-down;
+ };
+ cam_rgb_default: cam-rgb-default-state {
+  mclk-pins {
+   pins = "gpio100";
+   function = "cam_aon";
+   drive-strength = <16>;
+   bias-disable;
+  };
+  reset-n-pins {
+   pins = "gpio237";
+   function = "gpio";
+   drive-strength = <2>;
+   bias-disable;
+  };
+ };
+};

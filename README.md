@@ -71,7 +71,7 @@ linux-surface wiki and issues.
 | Keyboard, battery (Surface Aggregator) | ✓ | ✓ | – (USB devices) | ✓ | ✓ | ✓ |
 | Touchpad | ? | ? | – | ✓ (extra modules + iptsd) | ? | ? |
 | Touchscreen | – | – | – | ✓ (extra modules + iptsd) | – | ✓ |
-| Cameras | – | – | – | – | – | – |
+| Cameras | – | – | – | ✓ front camera (overlay + libcamera) | – | – |
 | Cellular (LTE/5G) | – | – | – | – | – | – |
 
 - **✓**: described in the devicetree, driver present in the kernel.
@@ -80,15 +80,14 @@ linux-surface wiki and issues.
 - **–**: not described in the devicetree, so currently without function.
 
 **Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
-boot through Ventoy, installation, display, keyboard, NVMe, USB, GNOME, the
-firmware taken from Windows (ADSP/CDSP start), Wi-Fi, Bluetooth, audio, the
-touchpad, the touchscreen and the keyboard backlight work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
-the devicetree describes 12 cores; that is harmless. GPU acceleration
-(freedreno, Adreno X1-85, OpenGL 4.6), screen brightness and battery reporting
-work as well. A short suspend (lid closed for ten seconds) and resume worked,
-with touchpad, touchscreen and Wi-Fi back afterwards; longer sleeps and the
-standby power draw were not measured. Cameras are not described in the
-devicetree and do not work.
+boot through Ventoy, installation, display and brightness, GPU acceleration
+(freedreno, Adreno X1-85, OpenGL 4.6), keyboard and keyboard backlight,
+touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
+battery reporting and GNOME work; the boot takes about 5 s. A short suspend
+(lid closed for ten seconds) and resume worked, with touchpad, touchscreen and
+Wi-Fi back afterwards; longer sleeps and the standby power draw were not
+measured. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because the
+devicetree describes 12 cores; that is harmless.
 
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
 provide yet; the ISO and `surface-install` set them up automatically:
@@ -108,6 +107,14 @@ provide yet; the ISO and `surface-install` set them up automatically:
   and `iptsd` turns the raw reports into input events.
 - **Bluetooth:** the controller has no address under Linux and does not show
   up in BlueZ; `surface-bt-addr` assigns a stable one at boot.
+- **Front camera:** the devicetree has no camera subsystem (CAMSS) and no
+  CCI buses. An overlay adds them together with the OV02C10 sensor
+  ([source](overlays-src/sl7-camera.dts.in), based on patches from Omarchy);
+  the drivers are already in the kernel. Applications use it through
+  libcamera's software ISP, e.g. via PipeWire in browsers and video calls.
+  Images are still dark in dim light and the auto exposure settles slowly:
+  libcamera 0.7.2 has no tuning for this sensor yet. The IR camera
+  (Windows Hello) is not described.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can
@@ -269,6 +276,8 @@ scripts/test-qemu.sh          smoke test in QEMU
 airootfs-pre/                 files placed in the root before package installation
                               (initramfs hooks surface-qcom and surface_isoscan)
 airootfs/                     overlay of the live system (tools, systemd units)
+overlays-src/                 overlay sources that need the kernel's dt-bindings headers;
+                              scripts/gen-overlays.sh turns them into the .dtso files
 ```
 
 The ISO is a hybrid image (ISO9660 + GPT with a FAT EFI system partition).
