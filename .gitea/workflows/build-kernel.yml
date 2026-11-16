@@ -1,0 +1,92 @@
+# Baut den eigenen Kernel (linux-surface mit den Treibern für den Surface
+# Laptop 7) auf Knopfdruck: Actions → "Kernel bauen" → "Workflow ausführen".
+#
+# Holt die neueste linux-surface-Version (oder einen gewählten Tag), trägt sie
+# in kernel/PKGBUILD ein, baut per Cross-Compiler und lädt die Pakete in die
+# Paketregistry (Repository surface-kernel). Installierte Systeme bekommen sie
+# dann mit "pacman -Syu". Das aktualisierte PKGBUILD wird anschließend
+# eingecheckt. Liegt die Version schon in der Registry, endet der Lauf ohne
+# Bau (außer mit "force": dann entsteht die nächste Revision, z. B. 7.3.1-1.2,
+# etwa nach Änderungen an den Treibern oder Patches).
+#
+# Voraussetzungen:
+#   - Secret KERNEL_TOKEN (Repository → Einstellungen → Actions → Secrets):
+#     Gitea-Zugriffstoken mit den Berechtigungen package (Lesen und Schreiben)
+#     und repository (Lesen und Schreiben)
+#   - ein x86_64-Runner mit dem Label ubuntu-latest, in dessen Jobs Docker
+#     erreichbar ist (wie beim ISO-Workflow)
+#   - Laufzeit: etwa 20 Minuten auf 16 Kernen, auf kleinen Runnern deutlich
+#     länger; die Kernel-Quellen bleiben im Docker-Volume des Runners
+#
+# Passen die Patches nicht mehr auf eine neue linux-surface-Version oder hat
+# linux-surface sein PKGBUILD umgebaut, bricht der Lauf mit einer Meldung ab;
+# dann kernel/ von Hand angleichen.
+name: Kernel bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "linux-surface-Version: latest oder ein Tag wie linux_surface-7.3.2-1"
+        default: "latest"
+      force:
+        description: "Auch bauen, wenn die Version schon in der Registry liegt (neue Revision)"
+        type: boolean
+        default: false
+      upload:
+        description: "In die Paketregistry laden und PKGBUILD einchecken"
+        type: boolean
+        default: true
+
+jobs:
+  kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Quellen holen
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.KERNEL_TOKEN }}
+
+      - name: Docker prüfen
+        run: docker info --format 'Server {{.ServerVersion}}, {{.NCPU}} CPUs, {{.MemTotal}} Bytes RAM'
+
+      - name: Kernel bauen
+        shell: bash
+        env:
+          CI: "true"
+          GITEA_TOKEN: ${{ secrets.KERNEL_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force }}
+          UPLOAD: ${{ inputs.upload }}
+        run: |
+          args=(--tag "${TAG:-latest}")
+          [[ "$FORCE" == true ]] && args+=(--force)
+          [[ "$UPLOAD" == true ]] && args+=(upload)
+          scripts/build-kernel.sh "${args[@]}"
+          cat out/kernel/.update/status
+
+      - name: PKGBUILD einchecken
+        if: ${{ inputs.upload == true || inputs.upload == 'true' }}
+        shell: bash
+        run: |
+          if git diff --quiet -- kernel/; then
+              echo "kernel/ unverändert"
+              exit 0
+          fi
+          version="$(sed -n 's/^VERSION=//p' out/kernel/.update/status)"
+          git config user.name "Kernel-Workflow"
+          git config user.email "kernel-workflow@noreply.git.3dns.eu"
+          git add kernel/
+          git commit -m "Kernel: linux-surface $version (Workflow)"
+          git pull --rebase
+          git push
+
+      # Ohne Upload (Testbau) die Pakete als Artefakt bereitstellen
+      - name: Pakete als Artefakt
+        if: ${{ inputs.upload == false || inputs.upload == 'false' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-surface-aarch64
+          path: out/kernel/*.pkg.tar.zst
+          if-no-files-found: ignore

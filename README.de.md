@@ -153,9 +153,19 @@ Tastaturbeleuchtung) sowie einen Fix für den CPU-Takt (siehe oben)
 ([PKGBUILD](kernel/PKGBUILD)). Die Version `7.3.1-1.1` steht für
 linux-surface `7.3.1-1` plus eigene Revision `.1`. Gebaut wird er mit
 `scripts/build-kernel.sh` per Cross-Compiler in Docker (etwa 20 Minuten auf
-16 Kernen); `scripts/build-kernel.sh upload` lädt ihn in die Registry. Für
-jede neue linux-surface-Version muss er neu gebaut werden, bis dahin bleiben
-installierte Systeme auf dem bisherigen Kernel.
+16 Kernen). Für jede neue linux-surface-Version muss er neu gebaut werden,
+bis dahin bleiben installierte Systeme auf dem bisherigen Kernel. Das geht auf
+Knopfdruck mit dem Gitea-Workflow „Kernel bauen“ (siehe [CI](#ci)) oder
+lokal:
+
+```sh
+scripts/build-kernel.sh --latest upload   # neueste linux-surface-Version bauen und hochladen
+scripts/build-kernel.sh --tag linux_surface-7.3.1-1 --force upload   # neue Revision derselben Version
+```
+
+`--latest`/`--tag` übernehmen Quellstand und Konfiguration aus dem PKGBUILD
+von linux-surface ([`scripts/kernel-update.py`](scripts/kernel-update.py));
+liegt die Version schon in der Registry, wird ohne `--force` nichts gebaut.
 
 Ohne den eigenen Kernel (`WITH_SURFACE_KERNEL=0`) kommen die Treiber als
 Zusatzmodule: `surface-kmods` baut sie nach
@@ -337,6 +347,13 @@ Job erlauben, privilegierte Docker-Container zu starten. Der Workflow baut
 ohne die Pro-X-Firmware (`WITH_SPX_FIRMWARE=0`), weil sie nicht weitergegeben
 werden darf. Das ISO ist rund 0,8 GB groß; der Build braucht etwa 10 GB Platz
 und beim ersten Lauf 45–60 Minuten.
+
+[`.gitea/workflows/build-kernel.yml`](.gitea/workflows/build-kernel.yml)
+(„Kernel bauen“, nur von Hand) bringt den eigenen Kernel auf die neueste
+linux-surface-Version (oder einen gewählten Tag), baut ihn, lädt ihn in die
+Paketregistry und checkt das aktualisierte PKGBUILD ein. Er braucht das Secret
+`KERNEL_TOKEN` (Gitea-Token mit Schreibrecht auf Pakete und Repository) und
+einen x86_64-Runner mit Docker; der Bau dauert etwa 20 Minuten auf 16 Kernen.
 
 ## Bekannte Grenzen
 

@@ -150,10 +150,20 @@ contains the drivers above (Wi-Fi patch, touchpad/touchscreen, keyboard
 backlight) plus a fix for the CPU clock (see above)
 ([PKGBUILD](kernel/PKGBUILD)). Version `7.3.1-1.1` means linux-surface
 `7.3.1-1` plus our revision `.1`. It is built with `scripts/build-kernel.sh`
-using a cross compiler in Docker (about 20 minutes on 16 cores);
-`scripts/build-kernel.sh upload` pushes it to the registry. It has to be
+using a cross compiler in Docker (about 20 minutes on 16 cores). It has to be
 rebuilt for every new linux-surface release; until then installed systems
-stay on the previous kernel.
+stay on the previous kernel. That takes one click with the Gitea workflow
+"Kernel bauen" (see [CI](#ci)), or locally:
+
+```sh
+scripts/build-kernel.sh --latest upload   # build and upload the newest linux-surface release
+scripts/build-kernel.sh --tag linux_surface-7.3.1-1 --force upload   # new revision of the same release
+```
+
+`--latest`/`--tag` take the source revision and configuration from the
+linux-surface PKGBUILD ([`scripts/kernel-update.py`](scripts/kernel-update.py));
+if that release is already in the registry, nothing is built without
+`--force`.
 
 Without the own kernel (`WITH_SURFACE_KERNEL=0`) the drivers come as extra
 modules: `surface-kmods` builds them into `/usr/lib/modules/<kernel>/updates/`,
@@ -333,6 +343,13 @@ job start privileged Docker containers. The workflow builds without the Pro X
 firmware (`WITH_SPX_FIRMWARE=0`) because that firmware must not be
 redistributed. The ISO is about 0.8 GB; the build needs roughly 10 GB of disk
 and, on the first run, 45-60 minutes.
+
+[`.gitea/workflows/build-kernel.yml`](.gitea/workflows/build-kernel.yml)
+("Kernel bauen", manual only) brings the own kernel to the newest linux-surface
+release (or a chosen tag), builds it, uploads it to the package registry and
+commits the updated PKGBUILD. It needs the secret `KERNEL_TOKEN` (a Gitea
+token with write access to packages and the repository) and an x86_64 runner
+with Docker; the build takes about 20 minutes on 16 cores.
 
 ## Known limitations
 

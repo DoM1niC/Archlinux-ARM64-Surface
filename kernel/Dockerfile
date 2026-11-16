@@ -6,3 +6,5 @@ RUN pacman -Syu --noconfirm --needed \
         base-devel aarch64-linux-gnu-gcc bc cpio kmod inetutils dtc python perl \
         flex bison openssl libelf git zstd \
     && pacman -Scc --noconfirm
+
+WORKDIR /project
