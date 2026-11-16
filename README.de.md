@@ -301,7 +301,11 @@ surface-install /mnt
 - übernimmt die gerätespezifische Firmware aus Windows (`surface-fw-extract`),
 - installiert GRUB und erzeugt über `/etc/grub.d/09_surface` einen Eintrag mit
   dem Devicetree des Geräts (`/etc/default/surface-boot`). `grub-mkconfig`
-  funktioniert danach wie gewohnt.
+  funktioniert danach wie gewohnt,
+- richtet zram (komprimierter Swap im RAM, halbe RAM-Größe, höchstens 8 GB) und
+  systemd-oomd ein: Bei Speichermangel wird so nicht mehr das ganze System
+  zäh und friert ein, sondern oomd beendet bei anhaltendem Druck das
+  verursachende Programm.
 
 Partitionieren, Formatieren und Einhängen macht das Skript bewusst nicht
 selbst.

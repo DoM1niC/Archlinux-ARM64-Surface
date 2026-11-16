@@ -299,7 +299,10 @@ surface-install /mnt
 - takes the device-specific firmware from Windows (`surface-fw-extract`),
 - installs GRUB and generates, through `/etc/grub.d/09_surface`, an entry with
   the device's devicetree (`/etc/default/surface-boot`). `grub-mkconfig` keeps
-  working as usual afterwards.
+  working as usual afterwards,
+- sets up zram (compressed swap in RAM, half the RAM size, at most 8 GB) and
+  systemd-oomd: when memory runs out the whole system no longer grinds to a
+  halt and freezes; instead oomd ends the program causing sustained pressure.
 
 Partitioning, formatting and mounting are deliberately left to you.
 

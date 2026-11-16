@@ -158,7 +158,7 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano networkmanager wireless-regdb terminus-font
       bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
-      e2fsprogs dosfstools ntfs-3g cryptsetup vulkan-freedreno)
+      e2fsprogs dosfstools ntfs-3g cryptsetup vulkan-freedreno zram-generator)
 case "$(findmnt -no FSTYPE "$target")" in
     btrfs) pkgs+=(btrfs-progs) ;;
     xfs)   pkgs+=(xfsprogs) ;;
@@ -265,6 +265,16 @@ arch-chroot "$target" systemctl enable NetworkManager.service systemd-resolved.s
 if [[ "$device" == spx ]] && [[ -e "$target/usr/lib/systemd/system/rmtfs.service" ]]; then
     arch-chroot "$target" systemctl enable tqftpserv.service rmtfs.service
 fi
+
+# Schutz gegen Einfrieren bei Speichermangel: zram (komprimierter Swap im
+# RAM) und systemd-oomd (beendet bei anhaltendem Speicherdruck das
+# verursachende Programm statt das ganze System hängen zu lassen)
+for f in etc/systemd/zram-generator.conf etc/sysctl.d/99-surface-zram.conf \
+         "etc/systemd/system/-.slice.d/10-surface-oomd.conf" \
+         "etc/systemd/system/user@.service.d/10-surface-oomd.conf"; do
+    install -Dm644 "$SHARE/target/$f" "$target/$f"
+done
+arch-chroot "$target" systemctl enable systemd-oomd.service
 
 # Werkzeuge auch im installierten System bereitstellen
 install -Dm755 -t "$target/usr/local/bin" \
