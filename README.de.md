@@ -81,7 +81,8 @@ linux-surface.
 
 **Getestet auf einem Surface Laptop 7 13,8"** (X Plus, Modell 2036, Kernel
 7.3.1): Start über Ventoy, Installation, Display samt Helligkeit,
-GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6), Tastatur samt
+GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6 und Vulkan über
+Turnip), Tastatur samt
 Beleuchtung, Touchpad, Touchscreen, Frontkamera, NVMe, USB, WLAN, Bluetooth,
 Ton, Akkuanzeige und GNOME funktionieren; der Start dauert etwa 5 s. Standby
 und Aufwachen funktionieren (getestet mit mehreren Minuten Schlaf): Touchpad

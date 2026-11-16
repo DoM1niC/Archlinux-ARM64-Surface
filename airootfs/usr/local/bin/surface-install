@@ -150,10 +150,15 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # linux-firmware-qcom gehört nicht zum Metapaket linux-firmware, enthält aber
 # die GPU-/DSP-Firmware der Snapdragon-Plattformen – ohne sie bleibt nach dem
 # Laden des Grafiktreibers das Bild stehen.
+# vulkan-freedreno (Turnip): Mit Vulkan zeichnen GTK-4-Programme über Vulkan
+# statt OpenGL. Unter OpenGL frieren die GNOME-Einstellungen nach der Seite
+# "Maus und Tastfeld" ein und stürzen beim Schließen ab: Beim Beenden der
+# Animationsvideos ruft GStreamer eglTerminate() für die EGL-Verbindung auf,
+# die GTK mitbenutzt.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
       archlinuxarm-keyring sudo nano networkmanager wireless-regdb terminus-font
       bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
-      e2fsprogs dosfstools ntfs-3g cryptsetup)
+      e2fsprogs dosfstools ntfs-3g cryptsetup vulkan-freedreno)
 case "$(findmnt -no FSTYPE "$target")" in
     btrfs) pkgs+=(btrfs-progs) ;;
     xfs)   pkgs+=(xfsprogs) ;;

@@ -81,7 +81,8 @@ linux-surface wiki and issues.
 
 **Tested on a Surface Laptop 7 13.8"** (X Plus, model 2036, kernel 7.3.1):
 boot through Ventoy, installation, display and brightness, GPU acceleration
-(freedreno, Adreno X1-85, OpenGL 4.6), keyboard and keyboard backlight,
+(freedreno, Adreno X1-85, OpenGL 4.6 and Vulkan through Turnip), keyboard
+and keyboard backlight,
 touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
 battery reporting and GNOME work; the boot takes about 5 s. Suspend and
 resume work (tested with several minutes of sleep): touchpad and touchscreen
