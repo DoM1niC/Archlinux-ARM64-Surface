@@ -357,7 +357,14 @@ Kernel-Updates bauen und signieren das UKI automatisch neu (pacman-Hook,
 mkinitcpio). GRUB bleibt als Eintrag im Menü von systemd-boot, startet aber
 nur ohne Secure Boot. Startet etwas nicht: im Surface-UEFI Secure Boot auf
 „None“ stellen. Das ISO startet nicht mit Secure Boot; zum Installieren also
-vorübergehend ausschalten. Getestet auf dem Laptop 7 (13,8").
+vorübergehend ausschalten.
+
+**Experimentell:** Auf dem Laptop 7 (13,8") startete Linux mit Secure Boot,
+nach einem Start von Windows aber nicht mehr – die Firmware startete nur noch
+Windows, bis Secure Boot wieder auf „None“ stand. Vermutlich ändert Windows
+beim Start die Secure-Boot-Datenbank (Umstellung auf die Microsoft-Zertifikate
+von 2023); die Ursache ist noch nicht geklärt. Wer Windows parallel nutzt,
+lässt Secure Boot vorerst aus.
 
 ## Aufbau
 

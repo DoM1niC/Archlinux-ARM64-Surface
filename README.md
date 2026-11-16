@@ -350,7 +350,14 @@ surface-secureboot status
 the UKI automatically (pacman hook, mkinitcpio). GRUB stays in the systemd-boot
 menu but only boots without Secure Boot. If something does not boot, set
 Secure Boot to "None" in the Surface UEFI. The ISO does not boot with Secure
-Boot; turn it off temporarily to install. Tested on the Laptop 7 (13.8").
+Boot; turn it off temporarily to install.
+
+**Experimental:** on the Laptop 7 (13.8") Linux booted with Secure Boot, but
+no longer after Windows had been started – the firmware only booted Windows
+until Secure Boot was set back to "None". Windows presumably changes the
+Secure Boot database when it starts (the move to Microsoft's 2023
+certificates); the cause is not yet confirmed. If you also use Windows, leave
+Secure Boot off for now.
 
 ## Layout
 
