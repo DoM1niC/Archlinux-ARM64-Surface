@@ -12,6 +12,13 @@
 > [Starten](#starten). Das ISO lässt sich auch mit einem Befehl
 > [selbst bauen](#bauen).
 
+<p align="center">
+  <img src="docs/images/surface-laptop-7-gnome.jpg" alt="Surface Laptop 7 mit GNOME unter Arch Linux ARM, Tastaturbeleuchtung an, GNOME-Schnelleinstellungen geöffnet" height="420">
+  &nbsp;
+  <img src="docs/images/surface-laptop-7-live-system.jpg" alt="Das Live-System nach dem Start vom ISO auf einem Surface Laptop 7: automatische root-Anmeldung und Übersicht der Hilfsbefehle" height="420">
+</p>
+<p align="center"><em>Surface Laptop 7 (13,8"): das installierte System mit GNOME und das Live-System direkt nach dem Start vom ISO</em></p>
+
 Baut ein bootfähiges Live-/Installations-ISO (aarch64, UEFI) mit
 
 - **Userland** aus [Arch Linux ARM](https://archlinuxarm.org),

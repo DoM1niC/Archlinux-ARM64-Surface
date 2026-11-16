@@ -11,6 +11,13 @@
 > to a USB drive with `dd`, then continue with [Booting](#booting). You can
 > also [build the ISO yourself](#building) with a single command.
 
+<p align="center">
+  <img src="docs/images/surface-laptop-7-gnome.jpg" alt="Surface Laptop 7 running GNOME on Arch Linux ARM, with keyboard backlight on and the GNOME quick settings open" height="420">
+  &nbsp;
+  <img src="docs/images/surface-laptop-7-live-system.jpg" alt="The live system after booting from the ISO on a Surface Laptop 7: automatic root login and the overview of the helper commands" height="420">
+</p>
+<p align="center"><em>Surface Laptop 7 (13.8"): the installed system with GNOME, and the live system right after booting the ISO</em></p>
+
 Builds a bootable live/installation ISO (aarch64, UEFI) with
 
 - **userland** from [Arch Linux ARM](https://archlinuxarm.org),
