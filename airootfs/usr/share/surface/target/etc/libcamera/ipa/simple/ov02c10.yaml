@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: CC0-1.0
+#
+# OV02C10 (Frontkamera des Surface Laptop 7) für den Software-ISP von
+# libcamera. libcamera 0.7 kennt für diesen Sensor keinen "sensor helper";
+# ohne festen Schwarzwert schätzt der Software-ISP ihn aus jedem Bild, und in
+# dunklen Räumen kippen die Farben (Schatten rot, helle Flächen cyan).
+# Schwarzwert laut Kernel-Treiber: BLC-Ziel 0x40 bei 10 Bit (Register 0x4003),
+# hier im 16-Bit-Maßstab.
+#
+# OV02C10 (Surface Laptop 7 front camera) for the libcamera software ISP,
+# with the sensor's fixed black level (0x40 at 10 bits).
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+      blackLevel: 4096
+  - Awb:
+  - Adjust:
+  - Agc:
+...

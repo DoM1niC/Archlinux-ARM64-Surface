@@ -300,6 +300,9 @@ if [[ " $overlays " == *" sl7-camera "* ]]; then
         "$target/etc/udev/rules.d/70-surface-dma-heap.rules"
     install -Dm644 "$SHARE/target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf" \
         "$target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf"
+    # Abstimmung des Sensors für den Software-ISP (fester Schwarzwert)
+    install -Dm644 "$SHARE/target/etc/libcamera/ipa/simple/ov02c10.yaml" \
+        "$target/etc/libcamera/ipa/simple/ov02c10.yaml"
 fi
 if [[ " ${pkgs[*]} " == *" iptsd "* ]]; then
     # Touchpad/Touchscreen kommen nach dem Standby im Maus-Modus zurück; iptsd
