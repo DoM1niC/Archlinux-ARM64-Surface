@@ -69,8 +69,10 @@ Touchpad, Touchscreen und Tastaturbeleuchtung funktionieren; der Start dauert et
 10-Kern-Variante (X Plus) meldet
 `CPU7`/`CPU11 failed to boot`, weil der Devicetree 12 Kerne beschreibt; das
 ist harmlos. GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6),
-Bildschirmhelligkeit und Akkuanzeige funktionieren ebenfalls. Standby ist
-nicht überprüft.
+Bildschirmhelligkeit und Akkuanzeige funktionieren ebenfalls. Ein kurzer
+Standby (Deckel zehn Sekunden zu) samt Aufwachen hat funktioniert, Touchpad,
+Touchscreen und WLAN waren danach wieder da; längere Schlafphasen und der
+Verbrauch im Standby sind nicht gemessen.
 Kameras sind im Devicetree nicht beschrieben und funktionieren nicht.
 
 Der Surface Laptop 7 braucht einige Dinge, die der linux-surface-Kernel noch

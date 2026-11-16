@@ -69,7 +69,9 @@ firmware taken from Windows (ADSP/CDSP start), Wi-Fi, Bluetooth, audio, the
 touchpad, the touchscreen and the keyboard backlight work; the boot takes about 5 s. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because
 the devicetree describes 12 cores; that is harmless. GPU acceleration
 (freedreno, Adreno X1-85, OpenGL 4.6), screen brightness and battery reporting
-work as well. Suspend was not verified. Cameras are not described in the
+work as well. A short suspend (lid closed for ten seconds) and resume worked,
+with touchpad, touchscreen and Wi-Fi back afterwards; longer sleeps and the
+standby power draw were not measured. Cameras are not described in the
 devicetree and do not work.
 
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
