@@ -256,6 +256,14 @@ if (( needs_kmods )); then
         fi
     done
 fi
+if [[ " $overlays " == *" sl7-camera "* ]]; then
+    # Kamera: Zugriff auf die dma-buf-Heaps für den Software-ISP von libcamera,
+    # und die rohen CAMSS-Videoknoten in PipeWire ausblenden.
+    install -Dm644 "$SHARE/target/etc/udev/rules.d/70-surface-dma-heap.rules" \
+        "$target/etc/udev/rules.d/70-surface-dma-heap.rules"
+    install -Dm644 "$SHARE/target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf" \
+        "$target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf"
+fi
 if (( needs_kmods )) || [[ -n "$overlays" ]]; then
     install -Dm644 "$SHARE/target/etc/pacman.d/hooks/95-surface-kernel.hook" \
         "$target/etc/pacman.d/hooks/95-surface-kernel.hook"

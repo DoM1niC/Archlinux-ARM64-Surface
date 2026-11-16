@@ -112,7 +112,11 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   CCI-Busse. Ein Overlay ergänzt sie samt Sensor OV02C10
   ([Quelle](overlays-src/sl7-camera.dts.in), nach Patches von Omarchy); die
   Treiber sind bereits im Kernel. Programme nutzen sie über den Software-ISP
-  von libcamera, z. B. per PipeWire in Browsern und Videotelefonie. Bei wenig
+  von libcamera, z. B. per PipeWire in Browsern und Videotelefonie.
+  `surface-install` legt dazu eine udev-Regel an, damit der angemeldete
+  Benutzer die dma-buf-Heaps nutzen darf, die der Software-ISP braucht, und
+  eine WirePlumber-Regel, die die rohen CAMSS-Videoknoten ausblendet; so
+  sehen Programme eine Kamera statt sechzehn. Bei wenig
   Licht sind die Bilder noch dunkel und die Belichtung regelt langsam nach:
   libcamera 0.7.2 hat für diesen Sensor noch keine Abstimmung. Die
   IR-Kamera (Windows Hello) ist nicht beschrieben.

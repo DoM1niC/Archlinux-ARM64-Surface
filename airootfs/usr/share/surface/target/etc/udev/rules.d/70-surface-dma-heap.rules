@@ -1,0 +1,4 @@
+# libcamera (Software-ISP) holt Bildpuffer aus den dma-buf-Heaps. Ohne diese
+# Regel dürfen nur root darauf zugreifen; Kamera-Programme bekommen dann nur
+# Rohdaten. Freigabe für den angemeldeten Benutzer (uaccess) und die Gruppe video.
+SUBSYSTEM=="dma_heap", KERNEL=="linux,cma|system|default_cma_region", GROUP="video", MODE="0660", TAG+="uaccess"

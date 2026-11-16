@@ -112,6 +112,9 @@ provide yet; the ISO and `surface-install` set them up automatically:
   ([source](overlays-src/sl7-camera.dts.in), based on patches from Omarchy);
   the drivers are already in the kernel. Applications use it through
   libcamera's software ISP, e.g. via PipeWire in browsers and video calls.
+  `surface-install` adds a udev rule so that the logged-in user may use the
+  dma-buf heaps the software ISP needs, and a WirePlumber rule that hides
+  the raw CAMSS video nodes, so apps see one camera instead of sixteen.
   Images are still dark in dim light and the auto exposure settles slowly:
   libcamera 0.7.2 has no tuning for this sensor yet. The IR camera
   (Windows Hello) is not described.
