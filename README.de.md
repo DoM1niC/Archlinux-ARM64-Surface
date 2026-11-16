@@ -83,12 +83,20 @@ linux-surface.
 7.3.1): Start über Ventoy, Installation, Display samt Helligkeit,
 GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6), Tastatur samt
 Beleuchtung, Touchpad, Touchscreen, Frontkamera, NVMe, USB, WLAN, Bluetooth,
-Ton, Akkuanzeige und GNOME funktionieren; der Start dauert etwa 5 s. Ein
-kurzer Standby (Deckel zehn Sekunden zu) samt Aufwachen hat funktioniert,
-Touchpad, Touchscreen und WLAN waren danach wieder da; längere Schlafphasen
-und der Verbrauch im Standby sind nicht gemessen. Die 10-Kern-Variante (X
-Plus) meldet `CPU7`/`CPU11 failed to boot`, weil der Devicetree 12 Kerne
-beschreibt; das ist harmlos.
+Ton, Akkuanzeige und GNOME funktionieren; der Start dauert etwa 5 s. Standby
+und Aufwachen funktionieren (getestet mit mehreren Minuten Schlaf): Touchpad
+und Touchscreen sind im Standby stromlos und reagieren etwa 3 s nach dem
+Aufklappen wieder; der Verbrauch im Standby ist nicht gemessen. Die
+10-Kern-Variante (X Plus) meldet `CPU7`/`CPU11 failed to boot`, weil der
+Devicetree 12 Kerne beschreibt; das ist harmlos.
+
+**Bekanntes Problem, CPU-Takt:** Nur der erste CPU-Cluster (Kerne 0–3) hat
+eine Taktsteuerung. Für die beiden anderen markiert die Firmware jede
+Taktstufe als Turbo, und Linux verwirft sie beim Einrichten von cpufreq
+allesamt. Diese Kerne laufen unter Last trotzdem mit vollem Tempo, Linux kann
+sie aber nicht heruntertakten; das kostet Akku. Beheben lässt sich das nur im
+Kernel. Das ISO stellt den Taktregler `schedutil` ein; mit der Voreinstellung
+des Kernels (`performance`) liefen die Kerne 0–3 dauernd mit 3,4 GHz.
 
 Der Surface Laptop 7 braucht einige Dinge, die der linux-surface-Kernel noch
 nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:

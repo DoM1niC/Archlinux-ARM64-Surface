@@ -83,11 +83,20 @@ linux-surface wiki and issues.
 boot through Ventoy, installation, display and brightness, GPU acceleration
 (freedreno, Adreno X1-85, OpenGL 4.6), keyboard and keyboard backlight,
 touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
-battery reporting and GNOME work; the boot takes about 5 s. A short suspend
-(lid closed for ten seconds) and resume worked, with touchpad, touchscreen and
-Wi-Fi back afterwards; longer sleeps and the standby power draw were not
-measured. The 10-core X Plus logs `CPU7`/`CPU11 failed to boot` because the
-devicetree describes 12 cores; that is harmless.
+battery reporting and GNOME work; the boot takes about 5 s. Suspend and
+resume work (tested with several minutes of sleep): touchpad and touchscreen
+are powered off in standby and answer again about 3 s after opening the lid;
+the standby power draw was not measured. The 10-core X Plus logs
+`CPU7`/`CPU11 failed to boot` because the devicetree describes 12 cores; that
+is harmless.
+
+**Known issue, CPU clock:** only the first CPU cluster (cores 0–3) has
+frequency scaling. For the other two the firmware marks every frequency step as
+turbo, and Linux drops them all when setting up cpufreq. These cores still run
+at full speed under load, but Linux cannot clock them down, which costs
+battery. Fixing it needs a kernel change. The ISO sets the `schedutil`
+governor; the kernel default `performance` would keep cores 0–3 at 3.4 GHz all
+the time.
 
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
 provide yet; the ISO and `surface-install` set them up automatically:
