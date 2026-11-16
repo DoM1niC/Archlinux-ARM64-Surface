@@ -87,9 +87,14 @@ touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
 battery reporting and GNOME work; the boot takes about 5 s. Suspend and
 resume work (tested with several minutes of sleep): touchpad and touchscreen
 are powered off in standby and answer again about 3 s after opening the lid;
-the standby power draw was not measured. The 10-core X Plus logs
-`CPU7`/`CPU11 failed to boot` because the devicetree describes 12 cores; that
-is harmless.
+the standby power draw was not measured. On the 10-core X Plus the
+devicetree describes 12 cores, so the live system logs `CPU7`/`CPU11 failed to
+boot` (harmless). `surface-install` detects the absent cores and records them
+as `SURFACE_DTB_CPUS_ABSENT`; `surface-dtb-update` then removes them, together
+with their cpu-map entry and power domain, from the installed system's
+devicetree. Setting `status = "fail"` alone is not enough: their power domains
+would stay on because of `pd_ignore_unused`, and the clusters could never
+reach their deep idle state.
 
 **CPU clock:** for CPU clusters 2 and 3 (cores 4–11) the firmware reports no
 sustained frequency, so every frequency step would count as turbo and Linux

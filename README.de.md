@@ -87,9 +87,14 @@ Beleuchtung, Touchpad, Touchscreen, Frontkamera, NVMe, USB, WLAN, Bluetooth,
 Ton, Akkuanzeige und GNOME funktionieren; der Start dauert etwa 5 s. Standby
 und Aufwachen funktionieren (getestet mit mehreren Minuten Schlaf): Touchpad
 und Touchscreen sind im Standby stromlos und reagieren etwa 3 s nach dem
-Aufklappen wieder; der Verbrauch im Standby ist nicht gemessen. Die
-10-Kern-Variante (X Plus) meldet `CPU7`/`CPU11 failed to boot`, weil der
-Devicetree 12 Kerne beschreibt; das ist harmlos.
+Aufklappen wieder; der Verbrauch im Standby ist nicht gemessen. Bei der
+10-Kern-Variante (X Plus) beschreibt der Devicetree 12 Kerne; das Live-System
+meldet deshalb `CPU7`/`CPU11 failed to boot` (harmlos). `surface-install`
+erkennt die fehlenden Kerne und trägt sie als `SURFACE_DTB_CPUS_ABSENT` ein;
+`surface-dtb-update` entfernt sie dann samt Topologie-Eintrag und
+Energiedomäne aus dem Devicetree des installierten Systems. Ein bloßes
+`status = "fail"` reichte nicht: Ihre Energiedomänen blieben wegen
+`pd_ignore_unused` an, und die Cluster kämen nie in den Tiefschlaf.
 
 **CPU-Takt:** Für die CPU-Cluster 2 und 3 (Kerne 4–11) meldet die Firmware
 keine Dauerfrequenz, also wäre jede Taktstufe ein Turbo, und Linux verwürfe

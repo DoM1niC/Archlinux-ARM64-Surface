@@ -5,6 +5,14 @@
 # /etc/default/surface-boot:
 #   SURFACE_DTB="x1e80100-microsoft-romulus13.dtb"
 #   SURFACE_DTB_OVERLAYS="sl7-touchpad"        (Namen unter /usr/share/surface/overlays)
+#   SURFACE_DTB_CPUS_ABSENT="cpu@10300 cpu@20300"
+#       Kerne, die der Devicetree beschreibt, die es auf diesem Chip aber nicht
+#       gibt (Snapdragon X Plus mit 10 statt 12 Kernen). Sie werden samt
+#       Topologie-Eintrag und PSCI-Energiedomäne entfernt: Mit "status = fail"
+#       allein bliebe ihre Energiedomäne an (pd_ignore_unused), und der
+#       Cluster käme nie in den Tiefschlaf.
+#       Cores the devicetree describes but this chip lacks; removed together
+#       with their cpu-map entry and PSCI power domain.
 #
 # Ergebnis: /boot/surface/<SURFACE_DTB>; der GRUB-Eintrag (09_surface) nimmt
 # diese Datei, wenn sie existiert. Nach einem Kernel-Update muss sie aus dem
@@ -18,6 +26,7 @@ source /usr/share/surface/i18n.sh
 SURFACE_KERNEL="linux-surface"
 SURFACE_DTB=""
 SURFACE_DTB_OVERLAYS=""
+SURFACE_DTB_CPUS_ABSENT=""
 # shellcheck disable=SC1091
 [[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
 
@@ -25,7 +34,7 @@ OVERLAY_DIR=/usr/share/surface/overlays
 base="/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
 out="/boot/surface/${SURFACE_DTB}"
 
-if [[ -z "$SURFACE_DTB" || -z "$SURFACE_DTB_OVERLAYS" ]]; then
+if [[ -z "$SURFACE_DTB" || ( -z "$SURFACE_DTB_OVERLAYS" && -z "$SURFACE_DTB_CPUS_ABSENT" ) ]]; then
     rm -f "$out"
     exit 0
 fi
@@ -33,15 +42,58 @@ fi
 [[ -e "$base" ]] || { echo "$(t 'Devicetree fehlt' 'devicetree missing'): $base" >&2; exit 1; }
 command -v fdtoverlay >/dev/null || { echo "$(t 'fdtoverlay fehlt (Paket dtc).' 'fdtoverlay missing (package dtc).')" >&2; exit 1; }
 
-dtbos=()
-for o in $SURFACE_DTB_OVERLAYS; do
-    if [[ ! -e "$OVERLAY_DIR/$o.dtbo" || "$OVERLAY_DIR/$o.dtso" -nt "$OVERLAY_DIR/$o.dtbo" ]]; then
-        dtc -q -@ -I dts -O dtb -o "$OVERLAY_DIR/$o.dtbo" "$OVERLAY_DIR/$o.dtso"
-    fi
-    dtbos+=("$OVERLAY_DIR/$o.dtbo")
-done
-
 install -d /boot/surface
-fdtoverlay -i "$base" -o "$out.new" "${dtbos[@]}"
+if [[ -n "$SURFACE_DTB_OVERLAYS" ]]; then
+    dtbos=()
+    for o in $SURFACE_DTB_OVERLAYS; do
+        if [[ ! -e "$OVERLAY_DIR/$o.dtbo" || "$OVERLAY_DIR/$o.dtso" -nt "$OVERLAY_DIR/$o.dtbo" ]]; then
+            dtc -q -@ -I dts -O dtb -o "$OVERLAY_DIR/$o.dtbo" "$OVERLAY_DIR/$o.dtso"
+        fi
+        dtbos+=("$OVERLAY_DIR/$o.dtbo")
+    done
+    fdtoverlay -i "$base" -o "$out.new" "${dtbos[@]}"
+else
+    cp "$base" "$out.new"
+fi
+
+# Fehlende Kerne entfernen / remove absent cores
+phandle_of() { fdtget -t u "$out.new" "$1" phandle 2>/dev/null || true; }
+gone=()      # entfernte Knotenpfade, für __symbols__
+remove_node() { fdtput -r "$out.new" "$1"; gone+=("$1"); }
+removed=()
+for c in $SURFACE_DTB_CPUS_ABSENT; do
+    node="/cpus/$c"
+    ph="$(phandle_of "$node")"
+    if [[ -z "$ph" ]]; then
+        echo "$(t 'Kern nicht im Devicetree, übersprungen' 'core not in the devicetree, skipped'): $node" >&2
+        continue
+    fi
+    # Topologie-Eintrag (cpu-map/clusterX/coreY mit cpu = <&cpu>)
+    for cl in $(fdtget -l "$out.new" /cpus/cpu-map 2>/dev/null); do
+        for co in $(fdtget -l "$out.new" "/cpus/cpu-map/$cl"); do
+            [[ "$(fdtget -t u "$out.new" "/cpus/cpu-map/$cl/$co" cpu 2>/dev/null)" == "$ph" ]] \
+                && remove_node "/cpus/cpu-map/$cl/$co"
+        done
+    done
+    # PSCI-Energiedomäne (erster Eintrag von power-domains, Name "psci")
+    if [[ "$(fdtget "$out.new" "$node" power-domain-names 2>/dev/null | awk '{print $1}')" == psci ]]; then
+        pd="$(fdtget -t u "$out.new" "$node" power-domains | awk '{print $1}')"
+        for p in $(fdtget -l "$out.new" /psci 2>/dev/null); do
+            [[ "$(phandle_of "/psci/$p")" == "$pd" ]] && remove_node "/psci/$p"
+        done
+    fi
+    remove_node "$node"
+    removed+=("$c")
+done
+# Labels (__symbols__), die auf entfernte Knoten zeigen
+if (( ${#gone[@]} )); then
+    for sym in $(fdtget -p "$out.new" /__symbols__ 2>/dev/null); do
+        val="$(fdtget "$out.new" /__symbols__ "$sym")"
+        for g in "${gone[@]}"; do
+            [[ "$val" == "$g" ]] && { fdtput -d "$out.new" /__symbols__ "$sym"; break; }
+        done
+    done
+fi
+
 mv "$out.new" "$out"
-echo "$(t 'Devicetree erzeugt' 'devicetree built'): $out  (+ $SURFACE_DTB_OVERLAYS)"
+echo "$(t 'Devicetree erzeugt' 'devicetree built'): $out  (+ ${SURFACE_DTB_OVERLAYS:-–})${removed[*]:+, $(t 'ohne' 'without') ${removed[*]}}"
