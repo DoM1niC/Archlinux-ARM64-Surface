@@ -1,0 +1,63 @@
+#!/bin/bash
+# Baut das Unified Kernel Image (UKI) für systemd-boot: Kernel, Initramfs,
+# Devicetree (mit Overlays, siehe surface-dtb-update) und Kernel-Parameter in
+# einer EFI-Datei. Unter Secure Boot ist das der Weg, den Devicetree
+# mitzugeben – GRUB sperrt "devicetree" dann. Sind sbctl-Schlüssel
+# eingerichtet, wird das UKI signiert.
+# Builds the unified kernel image (kernel, initramfs, devicetree, kernel
+# parameters) for systemd-boot and signs it if sbctl keys exist.
+#
+# Aktiv nur mit SURFACE_BOOT=uki in /etc/default/surface-boot (eingerichtet
+# von surface-secureboot). Kernel-Parameter: /etc/kernel/cmdline (root=, rw,
+# quiet, ...) und SURFACE_CMDLINE. Aufgerufen von surface-kernel-update und
+# nach jedem mkinitcpio-Lauf (/etc/initcpio/post/surface-uki).
+set -euo pipefail
+
+# shellcheck source=../../share/surface/i18n.sh
+source /usr/share/surface/i18n.sh
+
+SURFACE_KERNEL="linux-surface"
+SURFACE_DTB=""
+SURFACE_CMDLINE=""
+SURFACE_BOOT="grub"
+SURFACE_ESP="/efi"
+# shellcheck disable=SC1091
+[[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
+
+[[ "$SURFACE_BOOT" == uki ]] || exit 0
+
+die() { echo "surface-uki: $*" >&2; exit 1; }
+
+kernel="/boot/vmlinuz-${SURFACE_KERNEL}"
+initrd="/boot/initramfs-${SURFACE_KERNEL}.img"
+dtb="/boot/surface/${SURFACE_DTB}"
+[[ -e "$dtb" ]] || dtb="/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
+out="${SURFACE_ESP}/EFI/Linux/arch-${SURFACE_KERNEL}.efi"
+
+[[ -e "$kernel" && -e "$initrd" ]] || die "$(t 'Kernel oder Initramfs fehlt' 'kernel or initramfs missing') ($kernel, $initrd)"
+[[ -n "$SURFACE_DTB" && -e "$dtb" ]] || die "$(t 'Devicetree fehlt' 'devicetree missing'): $dtb"
+[[ -r /etc/kernel/cmdline ]] || die "$(t '/etc/kernel/cmdline fehlt' '/etc/kernel/cmdline missing')"
+command -v ukify >/dev/null || die "$(t 'ukify fehlt (Paket systemd-ukify)' 'ukify missing (package systemd-ukify)')"
+mountpoint -q "$SURFACE_ESP" || die "$(t 'EFI-Partition nicht eingehängt' 'EFI system partition not mounted'): $SURFACE_ESP"
+
+kver=""
+for d in /usr/lib/modules/*/; do
+    [[ "$(cat "$d/pkgbase" 2>/dev/null)" == "$SURFACE_KERNEL" ]] && kver="$(basename "$d")"
+done
+
+cmdline="$(tr -s '[:space:]' ' ' < /etc/kernel/cmdline) ${SURFACE_CMDLINE}"
+cmdline="$(echo "$cmdline" | tr -s ' ' | sed 's/^ //; s/ $//')"
+
+install -d "${SURFACE_ESP}/EFI/Linux"
+# Erst neben dem alten UKI bauen, dann ersetzen
+ukify build --linux="$kernel" --initrd="$initrd" --devicetree="$dtb" \
+    --cmdline="$cmdline" --os-release=@/etc/os-release ${kver:+--uname="$kver"} \
+    --output="$out.new" >/dev/null
+mv "$out.new" "$out"
+
+signed=""
+if command -v sbctl >/dev/null && sbctl status --json 2>/dev/null | grep -q '"installed": *true'; then
+    sbctl sign -s "$out" >/dev/null
+    signed=" ($(t 'signiert' 'signed'))"
+fi
+echo "$(t 'UKI erzeugt' 'UKI built'): $out${signed}"

@@ -22,4 +22,6 @@ if [[ "${SURFACE_KMODS:-}" == yes ]]; then
     # die neuen Module gehören auch ins Initramfs
     mkinitcpio -P >/dev/null 2>&1 || rc=1
 fi
+# UKI für systemd-boot/Secure Boot (nur mit SURFACE_BOOT=uki, sonst nichts)
+/usr/local/bin/surface-uki || rc=1
 exit "$rc"

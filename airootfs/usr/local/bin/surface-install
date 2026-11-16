@@ -272,7 +272,8 @@ install -Dm755 -t "$target/usr/local/bin" \
 install -Dm644 -t "$target/usr/share/surface" "$SHARE/devices.conf" "$SHARE/i18n.sh"
 install -Dm644 /etc/surface/lang "$target/etc/surface/lang"
 install -Dm755 -t "$target/usr/local/bin" /usr/local/bin/surface-bt-addr \
-    /usr/local/bin/surface-kmods /usr/local/bin/surface-dtb-update /usr/local/bin/surface-kernel-update
+    /usr/local/bin/surface-kmods /usr/local/bin/surface-dtb-update /usr/local/bin/surface-kernel-update \
+    /usr/local/bin/surface-uki /usr/local/bin/surface-secureboot
 install -Dm644 -t "$target/etc/systemd/system" "$SHARE/target/etc/systemd/system/surface-bt-addr.service"
 arch-chroot "$target" systemctl enable bluetooth.service surface-bt-addr.service
 install -Dm644 "$SHARE/overlays.conf" "$target/usr/share/surface/overlays.conf"

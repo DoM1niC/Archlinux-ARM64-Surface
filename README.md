@@ -319,6 +319,30 @@ is already included in the ISO (`WITH_SPX_FIRMWARE=1`). There is no explicit
 redistribution licence for it – so do not distribute the ISO publicly, or
 build with `WITH_SPX_FIRMWARE=0`.
 
+### Secure Boot
+
+The installed system can run with Secure Boot and your own keys; Windows keeps
+booting because Microsoft's keys are enrolled as well. Under Secure Boot GRUB
+blocks the `devicetree` command, without which these devices do not boot. So
+the system then boots through **systemd-boot** and a signed **UKI** that
+combines kernel, initramfs, devicetree and kernel parameters in one EFI file
+([`surface-uki`](airootfs/usr/local/bin/surface-uki)). Two steps with a reboot
+in between ([`surface-secureboot`](airootfs/usr/local/bin/surface-secureboot)):
+
+```sh
+surface-secureboot boot     # set up systemd-boot + UKI (Secure Boot still off), reboot
+# Surface UEFI (volume up + power) → Security → Secure Boot "None" (setup mode)
+surface-secureboot enroll   # enroll own + Microsoft keys, sign, reboot
+surface-secureboot status
+```
+
+`enroll` aborts if Microsoft's certificates lack the CA Windows is signed with
+(on the Laptop 7: "Windows UEFI CA 2023"). Kernel updates rebuild and re-sign
+the UKI automatically (pacman hook, mkinitcpio). GRUB stays in the systemd-boot
+menu but only boots without Secure Boot. If something does not boot, set
+Secure Boot to "None" in the Surface UEFI. The ISO does not boot with Secure
+Boot; turn it off temporarily to install. Tested on the Laptop 7 (13.8").
+
 ## Layout
 
 ```

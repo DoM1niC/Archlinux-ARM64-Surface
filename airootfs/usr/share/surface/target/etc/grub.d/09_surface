@@ -34,11 +34,11 @@ if [ "x${GRUB_FS}" = "xbtrfs" ]; then
     fi
 fi
 
-# Devicetree: der des Kernelpakets oder, wenn Overlays eingetragen sind, der
-# von surface-dtb-update daraus erzeugte unter /boot/surface/.
+# Devicetree: der von surface-dtb-update erzeugte unter /boot/surface/ (mit
+# Overlays bzw. ohne fehlende Kerne), sonst der des Kernelpakets.
 dtb_file="/boot/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
 dtb_rel="${boot_rel}/dtb/${SURFACE_KERNEL}/qcom/${SURFACE_DTB}"
-if [ -n "${SURFACE_DTB_OVERLAYS}" ] && [ -e "/boot/surface/${SURFACE_DTB}" ]; then
+if [ -e "/boot/surface/${SURFACE_DTB}" ]; then
     dtb_file="/boot/surface/${SURFACE_DTB}"
     dtb_rel="${boot_rel}/surface/${SURFACE_DTB}"
 fi
