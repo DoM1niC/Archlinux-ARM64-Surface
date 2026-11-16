@@ -148,8 +148,14 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Raumlicht sind die Farben damit stimmig, wenn auch etwas blass (ohne
   eingemessene Farbmatrix). In sehr dunklen Räumen bleibt ein Cyanstich: Der
   Weißabgleich des Software-ISP verstärkt Rot höchstens vierfach, und die
-  Belichtung regelt langsam nach. Die IR-Kamera (Windows Hello) ist nicht
-  beschrieben.
+  Belichtung regelt langsam nach. Von Hand einstellen lassen sich Kontrast,
+  Gamma und Sättigung mit `surface-camera` (z. B. `surface-camera gamma 3`
+  hellt dunkle Räume auf); die Werte gelten für alle Programme, die die Kamera
+  über PipeWire nutzen, und werden beim Anmelden wieder gesetzt. Werkzeuge für
+  USB-Webcams wie cameractrls finden diese Kamera nicht: Sie ist ein reiner
+  Bildsensor, die Bildverarbeitung macht libcamera. Belichtung und
+  Weißabgleich regelt libcamera 0.7 nur automatisch. Die IR-Kamera (Windows
+  Hello) ist nicht beschrieben.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Bildregler der Frontkamera (libcamera über PipeWire).
+Image controls of the front camera (libcamera via PipeWire).
+
+Die Surface-Kameras sind Bildsensoren ohne eigene Bildverarbeitung; Helligkeit,
+Farbe und Kontrast berechnet der Software-ISP von libcamera. Werkzeuge für
+USB-Webcams (cameractrls, v4l2-ctl) finden hier deshalb keine Regler. libcamera
+0.7 bietet Kontrast, Gamma und Sättigung an; Belichtung und Weißabgleich
+regelt es nur automatisch.
+
+  surface-camera                     Werte anzeigen
+  surface-camera contrast 1.2        Kontrast   (0–2,    Standard 1)
+  surface-camera gamma 2.0           Gamma      (0.1–10, Standard 2.2)
+  surface-camera saturation 1.3      Sättigung  (0–2,    Standard 1)
+  surface-camera reset               alles auf Standard
+  surface-camera apply               gespeicherte Werte setzen (beim Anmelden)
+
+Als normaler Benutzer aufrufen (PipeWire-Sitzung). Die Werte gelten für alle
+Programme, die die Kamera über PipeWire nutzen (Browser, Snapshot, ...), ab dem
+nächsten Öffnen der Kamera, und werden in ~/.config/surface-camera.conf
+gespeichert.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "surface-camera.conf")
+# Name im Werkzeug -> Beschreibung in PipeWire (PropInfo) und Standardwert
+CONTROLS = {"contrast": ("Contrast", 1.0), "gamma": ("Gamma", 2.2), "saturation": ("Saturation", 1.0)}
+GERMAN = not os.environ.get("LANG", "").startswith("en")
+
+
+def t(de, en):
+    return de if GERMAN else en
+
+
+def die(msg):
+    print(f"surface-camera: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def camera_nodes():
+    """[(id, name, {beschreibung: (schlüssel, min, max)})] der libcamera-Knoten."""
+    try:
+        dump = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError):
+        die(t("PipeWire nicht erreichbar (als normaler Benutzer aufrufen).",
+              "PipeWire not reachable (run as a normal user)."))
+    nodes = []
+    for obj in dump:
+        if obj.get("type") != "PipeWire:Interface:Node":
+            continue
+        info = obj.get("info") or {}
+        props = info.get("props") or {}
+        if not str(props.get("node.name", "")).startswith("libcamera_input."):
+            continue
+        params = info.get("params") or {}
+        ctrls = {}
+        for pi in params.get("PropInfo") or []:
+            rng = pi.get("type") or {}
+            ctrls[pi.get("description")] = (pi.get("id"), rng.get("min"), rng.get("max"))
+        if ctrls:
+            nodes.append((obj["id"], props.get("node.description", props["node.name"]), ctrls))
+    return nodes
+
+
+def set_value(node_id, key, value):
+    # pw-dump nennt Standard-Schlüssel beim Namen (contrast), eigene als
+    # "id-0100002d"; pw-cli erwartet die eigenen als Dezimalzahl
+    k = str(int(key[3:], 16)) if str(key).startswith("id-") else key
+    pod = "{ %s: %s }" % (k, value)
+    r = subprocess.run(["pw-cli", "set-param", str(node_id), "Props", pod], capture_output=True, text=True)
+    if r.returncode != 0 or "error" in (r.stdout + r.stderr).lower():
+        die(t(f"Setzen fehlgeschlagen: {r.stdout.strip()} {r.stderr.strip()}",
+              f"setting failed: {r.stdout.strip()} {r.stderr.strip()}"))
+
+
+def load():
+    vals = {}
+    try:
+        with open(CONF) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    if k.strip() in CONTROLS:
+                        vals[k.strip()] = float(v)
+    except FileNotFoundError:
+        pass
+    return vals
+
+
+def save(vals):
+    os.makedirs(os.path.dirname(CONF), exist_ok=True)
+    with open(CONF, "w") as f:
+        f.write("# surface-camera: Bildregler der Frontkamera\n")
+        for k, v in sorted(vals.items()):
+            f.write(f"{k}={v}\n")
+
+
+def apply(vals, nodes, quiet=False):
+    for node_id, _, ctrls in nodes:
+        for name, value in vals.items():
+            desc = CONTROLS[name][0]
+            if desc in ctrls:
+                set_value(node_id, ctrls[desc][0], value)
+            elif not quiet:
+                print(t(f"{name}: von dieser Kamera nicht angeboten", f"{name}: not offered by this camera"))
+
+
+def show(nodes, vals):
+    if not nodes:
+        print(t("Keine libcamera-Kamera in PipeWire gefunden.", "No libcamera camera found in PipeWire."))
+        return
+    for node_id, desc, ctrls in nodes:
+        print(f"{desc} (PipeWire-Knoten {node_id})")
+        for name, (pdesc, default) in CONTROLS.items():
+            if pdesc not in ctrls:
+                print(f"  {name:<11} –  ({t('nicht angeboten', 'not offered')})")
+                continue
+            _, lo, hi = ctrls[pdesc]
+            value = vals.get(name, default)
+            print(f"  {name:<11} {value:<5g} ({lo:g}–{hi:g}, {t('Standard', 'default')} {default:g})")
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        return
+    if os.geteuid() == 0:
+        die(t("Bitte als normaler Benutzer aufrufen, nicht als root.", "Please run as a normal user, not as root."))
+
+    vals = load()
+    if args and args[0] == "apply":
+        if not vals:
+            return
+        # beim Anmelden: auf den Kamera-Knoten warten (WirePlumber legt ihn an)
+        for _ in range(30):
+            nodes = camera_nodes()
+            if nodes:
+                break
+            time.sleep(1)
+        else:
+            return
+        apply(vals, nodes, quiet=True)
+        return
+
+    nodes = camera_nodes()
+    if not args:
+        show(nodes, vals)
+        return
+    if args[0] == "reset":
+        vals = {k: d for k, (_, d) in CONTROLS.items()}
+        apply(vals, nodes, quiet=True)
+        save({})
+        show(nodes, {})
+        return
+    if args[0] in CONTROLS and len(args) == 2:
+        try:
+            value = float(args[1].replace(",", "."))
+        except ValueError:
+            die(t(f"keine Zahl: {args[1]}", f"not a number: {args[1]}"))
+        vals[args[0]] = value
+        apply({args[0]: value}, nodes)
+        save(vals)
+        show(nodes, vals)
+        print(t("Gilt ab dem nächsten Öffnen der Kamera.", "Takes effect the next time the camera is opened."))
+        return
+    die(t("Aufruf: surface-camera [contrast|gamma|saturation WERT | reset | apply]",
+          "usage: surface-camera [contrast|gamma|saturation VALUE | reset | apply]"))
+
+
+if __name__ == "__main__":
+    main()

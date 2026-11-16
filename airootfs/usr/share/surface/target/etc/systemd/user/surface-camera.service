@@ -1,0 +1,12 @@
+[Unit]
+Description=Bildregler der Frontkamera setzen / apply front camera image controls (surface-camera)
+After=wireplumber.service
+Requisite=wireplumber.service
+ConditionPathExists=%h/.config/surface-camera.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/surface-camera apply
+
+[Install]
+WantedBy=wireplumber.service

@@ -146,8 +146,14 @@ provide yet; the ISO and `surface-install` set them up automatically:
   measured on the device at minimum exposure: 64.06). With room light the
   colours are right, if somewhat pale (no calibrated colour matrix). Very
   dark rooms keep a cyan cast: the software ISP's white balance amplifies red
-  at most fourfold, and auto exposure settles slowly. The IR camera
-  (Windows Hello) is not described.
+  at most fourfold, and auto exposure settles slowly. Contrast, gamma and
+  saturation can be set by hand with `surface-camera` (e.g. `surface-camera
+  gamma 3` brightens dark rooms); the values apply to every program that uses
+  the camera through PipeWire and are restored at login. Tools for USB
+  webcams such as cameractrls do not find this camera: it is a bare image
+  sensor and libcamera does the image processing. libcamera 0.7 only controls
+  exposure and white balance automatically. The IR camera (Windows Hello) is
+  not described.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can

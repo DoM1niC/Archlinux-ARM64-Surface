@@ -16,6 +16,15 @@ algorithms:
   - BlackLevel:
       blackLevel: 4096
   - Awb:
+  # Neutrale Farbmatrix: Farben bleiben, wie sie sind, aber libcamera bietet
+  # damit den Regler "Saturation" an (surface-camera). Kostet praktisch
+  # nichts, der Software-ISP rechnet auf der GPU.
+  - Ccm:
+      ccms:
+        - ct: 6500
+          ccm: [ 1, 0, 0,
+                 0, 1, 0,
+                 0, 0, 1 ]
   - Adjust:
   - Agc:
 ...

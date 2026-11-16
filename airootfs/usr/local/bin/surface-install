@@ -301,9 +301,16 @@ if [[ " $overlays " == *" sl7-camera "* ]]; then
         "$target/etc/udev/rules.d/70-surface-dma-heap.rules"
     install -Dm644 "$SHARE/target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf" \
         "$target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf"
-    # Abstimmung des Sensors für den Software-ISP (fester Schwarzwert)
+    # Abstimmung des Sensors für den Software-ISP (fester Schwarzwert,
+    # neutrale Farbmatrix für den Sättigungsregler)
     install -Dm644 "$SHARE/target/etc/libcamera/ipa/simple/ov02c10.yaml" \
         "$target/etc/libcamera/ipa/simple/ov02c10.yaml"
+    # Bildregler (Kontrast, Gamma, Sättigung) über PipeWire; die gespeicherten
+    # Werte setzt ein Benutzerdienst beim Anmelden
+    install -Dm755 /usr/local/bin/surface-camera "$target/usr/local/bin/surface-camera"
+    install -Dm644 "$SHARE/target/etc/systemd/user/surface-camera.service" \
+        "$target/etc/systemd/user/surface-camera.service"
+    arch-chroot "$target" systemctl --global enable surface-camera.service
 fi
 if [[ " ${pkgs[*]} " == *" iptsd "* ]]; then
     # Touchpad/Touchscreen kommen nach dem Standby im Maus-Modus zurück; iptsd
