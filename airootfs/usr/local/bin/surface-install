@@ -304,7 +304,7 @@ cat > "$target/etc/default/surface-boot" <<EOF
 SURFACE_DTB="$dtb"
 
 # Kernel parameters this device needs
-SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0${dev_args:+ $dev_args}"
+SURFACE_CMDLINE="clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0 cpufreq.default_governor=schedutil${dev_args:+ $dev_args}"
 
 # Devicetree additions (names below /usr/share/surface/overlays). After changes
 # run: surface-dtb-update && grub-mkconfig -o /boot/grub/grub.cfg

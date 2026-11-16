@@ -370,7 +370,7 @@ EOF
 # ---------------------------------------------------------------------------
 write_grub_cfg() { # zieldatei
     local id name dtb args compat product sku
-    local base="archisobasedir=arch cow_spacesize=50% clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0"
+    local base="archisobasedir=arch cow_spacesize=50% clk_ignore_unused pd_ignore_unused systemd.tpm2_wait=0 cpufreq.default_governor=schedutil"
 
     {
         cat <<EOF
