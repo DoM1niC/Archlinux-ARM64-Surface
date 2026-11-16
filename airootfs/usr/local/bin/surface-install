@@ -250,7 +250,7 @@ if (( needs_kmods )); then
             install -Dm644 -t "$kdir/updates" "/usr/lib/modules/$k"/updates/*.ko
             arch-chroot "$target" depmod "$k"
         else
-            arch-chroot "$target" surface-kmods --kernel "$k" \
+            arch-chroot "$target" env SURFACE_KMODS_NO_INITRAMFS=1 surface-kmods --kernel "$k" \
                 || warn "$(t 'Zusatzmodule nicht gebaut – später nachholen: surface-kmods' \
                              'Extra modules not built – catch up later: surface-kmods')"
         fi
@@ -263,6 +263,16 @@ if [[ " $overlays " == *" sl7-camera "* ]]; then
         "$target/etc/udev/rules.d/70-surface-dma-heap.rules"
     install -Dm644 "$SHARE/target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf" \
         "$target/etc/wireplumber/wireplumber.conf.d/50-surface-camss.conf"
+fi
+if [[ " ${pkgs[*]} " == *" iptsd "* ]]; then
+    # Touchpad/Touchscreen kommen nach dem Standby im Maus-Modus zurück; iptsd
+    # muss neu starten, sobald spi_hid sie neu initialisiert hat. Der Dienst
+    # aus dem iptsd-Paket (nur 15", feste 2 s) käme dafür zu früh.
+    install -Dm755 /usr/local/bin/surface-touch-resume "$target/usr/local/bin/surface-touch-resume"
+    install -Dm644 -t "$target/etc/systemd/system" \
+        "$SHARE/target/etc/systemd/system/surface-touch-resume.service"
+    arch-chroot "$target" systemctl enable surface-touch-resume.service
+    arch-chroot "$target" systemctl mask iptsd-romulus15-resume.service
 fi
 if (( needs_kmods )) || [[ -n "$overlays" ]]; then
     install -Dm644 "$SHARE/target/etc/pacman.d/hooks/95-surface-kernel.hook" \

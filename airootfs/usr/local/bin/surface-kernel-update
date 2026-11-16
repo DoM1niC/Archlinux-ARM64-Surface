@@ -8,7 +8,7 @@ rc=0
 # shellcheck disable=SC1091
 [[ -r /etc/default/surface-boot ]] && source /etc/default/surface-boot
 if [[ "${SURFACE_KMODS:-}" == yes ]]; then
-    /usr/local/bin/surface-kmods --all || rc=1
+    SURFACE_KMODS_NO_INITRAMFS=1 /usr/local/bin/surface-kmods --all || rc=1
     # die neuen Module gehören auch ins Initramfs
     mkinitcpio -P >/dev/null 2>&1 || rc=1
 fi

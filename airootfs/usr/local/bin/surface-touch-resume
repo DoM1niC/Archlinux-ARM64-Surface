@@ -1,0 +1,34 @@
+#!/bin/bash
+# Startet iptsd nach dem Aufwachen neu, sobald Touchpad und Touchscreen wieder
+# bereit sind. / Restarts iptsd after resume once the touchpad and touchscreen
+# are ready again.
+#
+# Die HID-over-SPI-Geräte des Surface Laptop 7 verlieren im Standby ihren
+# Zustand und kommen im einfachen Maus-Modus zurück. Der Treiber spi_hid
+# initialisiert sie nach dem Aufwachen neu (etwa 3 s); das HID-Gerät bleibt
+# dabei bestehen, ein laufendes iptsd merkt davon nichts und schaltet den
+# Multitouch-Modus erst bei seinem Start wieder ein.
+#
+# The devices lose their state in standby and come back in mouse mode. spi_hid
+# re-initialises them after resume (about 3 s), but the HID device stays, so a
+# running iptsd does not notice; it only sets multitouch mode when it starts.
+set -u
+
+shopt -s nullglob
+devs=(/sys/bus/spi/drivers/spi_hid/spi*)
+(( ${#devs[@]} )) || exit 0
+
+all_ready() {
+    local d
+    for d in "${devs[@]}"; do
+        [[ "$(cat "$d/ready" 2>/dev/null)" == ready ]] || return 1
+    done
+}
+
+for _ in $(seq 1 30); do
+    all_ready && break
+    sleep 0.5
+done
+all_ready || echo "touch devices not ready after 15 s, restarting iptsd anyway" >&2
+
+systemctl restart 'iptsd@*.service'

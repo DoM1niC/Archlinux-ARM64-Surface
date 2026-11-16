@@ -599,8 +599,22 @@ static void spi_hid_reset_work(struct work_struct *work)
 success:
 	mutex_unlock(&shid->lock);
 
-	if (!shid->hid)
+	if (!shid->hid) {
 		spi_hid_create_device(shid);
+		return;
+	}
+
+	/*
+	 * Re-init of a device whose HID device already exists (after resume
+	 * or an error): accept input again, and after resume tell the HID
+	 * driver that the device was reset (hid-multitouch sets its input
+	 * mode again).
+	 */
+	shid->ready = true;
+	if (shid->resuming) {
+		shid->resuming = false;
+		hid_driver_reset_resume(shid->hid);
+	}
 }
 
 static int spi_hid_create_device(struct spi_hid *shid)
@@ -671,6 +685,55 @@ static void spi_hid_refresh_device_work(struct work_struct *work)
 		container_of(work, struct spi_hid, refresh_device_work);
 
 	shid->ready = true;
+}
+
+/*
+ * Power-up after system resume, the same sequence as in probe. Runs as work
+ * so that the 2 s the firmware needs do not hold up the resume of the system.
+ * The device then sends a reset response, and the IRQ thread starts
+ * reset_work, which reads the descriptors again.
+ */
+static void spi_hid_resume_work(struct work_struct *work)
+{
+	struct spi_hid *shid = container_of(work, struct spi_hid, resume_work);
+	struct device *dev = &shid->spi->dev;
+	int ret;
+
+	ret = pm_runtime_get_sync(dev->parent);
+	if (ret < 0) {
+		dev_warn(dev, "SPI ctrl PM get failed: %d\n", ret);
+		pm_runtime_put_noidle(dev->parent);
+	}
+
+	pinctrl_select_state(shid->pinctrl, shid->pinctrl_reset);
+	msleep(SPI_HID_RESET_ASSERT_MS);
+	pinctrl_select_state(shid->pinctrl, shid->pinctrl_active);
+	ret = spi_hid_power_up(shid);
+	if (ret)
+		dev_err(dev, "Power up after resume failed: %d\n", ret);
+	msleep(SPI_HID_POWER_UP_SETTLE_MS);
+
+	pm_runtime_put(dev->parent);
+
+	/*
+	 * Every request leaves output_done not done (the wait consumes the
+	 * completion, a timeout never gets one). The IRQ thread would then
+	 * use the reset response to complete it instead of starting
+	 * reset_work.
+	 */
+	if (!completion_done(&shid->output_done))
+		complete(&shid->output_done);
+	shid->bus_error_count = 0;
+	shid->attempts = 0;
+
+	enable_irq(shid->spi->irq);
+	shid->irq_enabled = true;
+
+	msleep(SPI_HID_RESUME_CHECK_MS);
+	if (!shid->ready && !work_busy(&shid->reset_work)) {
+		dev_info(dev, "No reset response after resume, re-initialising\n");
+		schedule_work(&shid->reset_work);
+	}
 }
 
 static int spi_hid_ll_start(struct hid_device *hid)
@@ -945,6 +1008,7 @@ static int spi_hid_probe(struct spi_device *spi)
 	INIT_WORK(&shid->reset_work, spi_hid_reset_work);
 	INIT_WORK(&shid->create_device_work, spi_hid_create_device_work);
 	INIT_WORK(&shid->refresh_device_work, spi_hid_refresh_device_work);
+	INIT_WORK(&shid->resume_work, spi_hid_resume_work);
 
 	shid->supply = devm_regulator_get_optional(dev, "vdd");
 	if (IS_ERR(shid->supply)) {
@@ -1010,7 +1074,7 @@ static int spi_hid_probe(struct spi_device *spi)
 	msleep(SPI_HID_RESET_ASSERT_MS);
 	pinctrl_select_state(shid->pinctrl, shid->pinctrl_active);
 	spi_hid_power_up(shid);
-	msleep(2000);
+	msleep(SPI_HID_POWER_UP_SETTLE_MS);
 
 	pm_runtime_put(dev->parent);
 
@@ -1036,6 +1100,7 @@ static void spi_hid_remove(struct spi_device *spi)
 	struct spi_hid *shid = spi_get_drvdata(spi);
 	struct device *dev = &spi->dev;
 
+	cancel_work_sync(&shid->resume_work);
 	spi_hid_power_down(shid);
 	free_irq(spi->irq, shid);
 	shid->irq_enabled = false;
@@ -1049,6 +1114,47 @@ static void spi_hid_remove(struct spi_device *spi)
 	kfree(shid->irq_bdy_tx);
 	kfree(shid->irq_bdy_rx);
 }
+
+/*
+ * System sleep. Without this the device kept raising its IRQ while the SPI
+ * controller was already suspended; the reads failed with -ESHUTDOWN, the
+ * IRQ got disabled for good, and the reset response the device sends after
+ * the rail comes back was lost. The device stayed silent until a rebind.
+ */
+static int spi_hid_suspend(struct device *dev)
+{
+	struct spi_hid *shid = dev_get_drvdata(dev);
+
+	cancel_work_sync(&shid->resume_work);
+
+	if (shid->hid)
+		hid_driver_suspend(shid->hid, PMSG_SUSPEND);
+
+	if (shid->irq_enabled) {
+		disable_irq(shid->spi->irq);
+		shid->irq_enabled = false;
+	}
+
+	cancel_work_sync(&shid->reset_work);
+	cancel_work_sync(&shid->refresh_device_work);
+
+	shid->ready = false;
+	spi_hid_power_down(shid);
+
+	return 0;
+}
+
+static int spi_hid_resume(struct device *dev)
+{
+	struct spi_hid *shid = dev_get_drvdata(dev);
+
+	shid->resuming = true;
+	schedule_work(&shid->resume_work);
+
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(spi_hid_pm_ops, spi_hid_suspend, spi_hid_resume);
 
 static const struct of_device_id spi_hid_of_match[] = {
 	{ .compatible = "hid-over-spi" },
@@ -1067,6 +1173,7 @@ static struct spi_driver spi_hid_driver = {
 		.name	= "spi_hid",
 		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(spi_hid_of_match),
+		.pm	= pm_sleep_ptr(&spi_hid_pm_ops),
 	},
 	.probe		= spi_hid_probe,
 	.remove		= spi_hid_remove,

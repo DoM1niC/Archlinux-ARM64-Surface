@@ -1,0 +1,11 @@
+[Unit]
+Description=iptsd nach dem Aufwachen neu starten / restart iptsd after resume (HID-over-SPI touch)
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+ConditionPathExists=/sys/bus/spi/drivers/spi_hid
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/surface-touch-resume
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

@@ -238,13 +238,30 @@ build_for() { # kernel-release
     fi
 
     depmod "$k"
+    built=1
     return "$rc"
 }
 
 rc=0
+built=0
 for k in "${kernels[@]}"; do
     build_for "$k" || rc=1
 done
+
+# Der Initramfs-Hook surface-qcom packt die Module aus updates/ mit ein; ohne
+# Neubau lädt der nächste Start die alten. Der Kernel-Update-Hook, die
+# Installation und der ISO-Bau bauen das Initramfs selbst und setzen deshalb
+# SURFACE_KMODS_NO_INITRAMFS.
+# The surface-qcom hook puts the modules from updates/ into the initramfs, so
+# it has to be rebuilt, unless the caller does that itself.
+if (( built )) && [[ -z "${SURFACE_KMODS_NO_INITRAMFS:-}" ]] \
+   && grep -qs '^HOOKS=.*surface-qcom' /etc/mkinitcpio.conf; then
+    msg "$(t 'Erneuere das Initramfs' 'Rebuilding the initramfs')"
+    mkinitcpio -P >/dev/null 2>&1 || {
+        warn "$(t 'mkinitcpio -P fehlgeschlagen' 'mkinitcpio -P failed')"
+        rc=1
+    }
+fi
 
 if (( rc )); then
     warn "$(t 'Ohne diese Module bleiben unter dem betroffenen Kernel das WLAN gesperrt bzw. das Touchpad ohne Funktion. Vor dem Neustart beheben oder eine andere Netzverbindung bereithalten.' \

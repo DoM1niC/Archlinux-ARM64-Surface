@@ -58,6 +58,10 @@
 #define SPI_HID_RESPONSE_TIMEOUT_MS		2000
 #define SPI_HID_MAX_RESET_ATTEMPTS		3
 #define SPI_HID_MAX_INIT_RETRIES		10
+/* Time the device firmware needs after power-up (probe and resume). */
+#define SPI_HID_POWER_UP_SETTLE_MS		2000
+/* After resume: re-init by hand if no reset response came by then. */
+#define SPI_HID_RESUME_CHECK_MS		3000
 
 #define SPI_HID_INPUT_HEADER_LEN		4
 #define SPI_HID_MAX_INPUT_LEN			SZ_8K
@@ -126,6 +130,10 @@ struct spi_hid {
 	struct work_struct reset_work;
 	struct work_struct create_device_work;
 	struct work_struct refresh_device_work;
+	struct work_struct resume_work;
+
+	/* Set on system resume; the next successful init calls reset_resume. */
+	bool resuming;
 
 	struct mutex lock;
 	struct completion output_done;

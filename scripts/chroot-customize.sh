@@ -43,6 +43,10 @@ systemctl enable systemd-networkd.service systemd-resolved.service \
 if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
     systemctl enable tqftpserv.service rmtfs.service >/dev/null
 fi
+if [[ -e /usr/lib/systemd/system/iptsd@.service ]]; then
+    systemctl enable surface-touch-resume.service >/dev/null
+    systemctl mask iptsd-romulus15-resume.service >/dev/null
+fi
 systemctl set-default multi-user.target >/dev/null
 passwd -d root >/dev/null
 
