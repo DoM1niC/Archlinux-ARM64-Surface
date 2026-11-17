@@ -85,9 +85,11 @@ GPU-Beschleunigung (freedreno, Adreno X1-85, OpenGL 4.6 und Vulkan über
 Turnip), Tastatur samt
 Beleuchtung, Touchpad, Touchscreen, Frontkamera, NVMe, USB, WLAN, Bluetooth,
 Ton, Akkuanzeige und GNOME funktionieren; der Start dauert etwa 5 s. Standby
-und Aufwachen funktionieren (getestet mit mehreren Minuten Schlaf): Touchpad
+und Aufwachen funktionieren (getestet mit 17 Stunden Schlaf): Touchpad
 und Touchscreen sind im Standby stromlos und reagieren etwa 3 s nach dem
-Aufklappen wieder; der Verbrauch im Standby ist nicht gemessen. Bei der
+Aufklappen wieder. Im Standby verliert der Akku etwa 1 % pro Stunde (rund
+0,5 W): Nur die CPU-Kerne schlafen, den tiefsten Schlafzustand des SoC
+(`cxsd`) erreicht der Kernel noch nicht. Einen Ruhezustand gibt es nicht. Bei der
 10-Kern-Variante (X Plus) beschreibt der Devicetree 12 Kerne; das Live-System
 meldet deshalb `CPU7`/`CPU11 failed to boot` (harmlos). `surface-install`
 erkennt die fehlenden Kerne und trägt sie als `SURFACE_DTB_CPUS_ABSENT` ein;
@@ -129,6 +131,10 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   hält iptsd aktuell und gegen neue Bibliotheken gebaut.
 - **Bluetooth:** Der Controller hat unter Linux keine Adresse und taucht in
   BlueZ nicht auf; `surface-bt-addr` vergibt beim Start eine feste.
+- **WLAN-Land:** Ohne Regulierungsdomäne braucht das Verbinden nach dem Start
+  und nach jedem Aufwachen 20–30 s länger. `surface-wifi-country` setzt das
+  Land aus `/etc/conf.d/wireless-regdom`; bei deutscher Sprache trägt
+  `surface-install` dort `DE` ein, sonst bitte selbst einstellen.
 - **Frontkamera:** Im Devicetree fehlen das Kamera-Subsystem (CAMSS) und die
   CCI-Busse. Ein Overlay ergänzt sie samt Sensor OV02C10
   ([Quelle](overlays-src/sl7-camera.dts.in), nach Patches von Omarchy); die

@@ -156,7 +156,7 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # Animationsvideos ruft GStreamer eglTerminate() für die EGL-Verbindung auf,
 # die GTK mitbenutzt.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
-      archlinuxarm-keyring sudo nano networkmanager wireless-regdb terminus-font
+      archlinuxarm-keyring sudo nano networkmanager wireless-regdb iw terminus-font
       bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
       e2fsprogs dosfstools ntfs-3g cryptsetup vulkan-freedreno zram-generator)
 case "$(findmnt -no FSTYPE "$target")" in
@@ -275,6 +275,21 @@ for f in etc/systemd/zram-generator.conf etc/sysctl.d/99-surface-zram.conf \
     install -Dm644 "$SHARE/target/$f" "$target/$f"
 done
 arch-chroot "$target" systemctl enable systemd-oomd.service
+
+# SSD: freie Blöcke wöchentlich an die NVMe melden (TRIM)
+arch-chroot "$target" systemctl enable fstrim.timer
+
+# WLAN-Land: Ohne Regulierungsdomäne sucht der WLAN-Chip nach dem Start und
+# nach jedem Aufwachen 20–30 s länger (siehe surface-wifi-country). Bei
+# deutscher Sprache wird DE eingetragen; sonst bleibt das Land offen und lässt
+# sich in /etc/conf.d/wireless-regdom einstellen.
+install -Dm755 /usr/local/bin/surface-wifi-country "$target/usr/local/bin/surface-wifi-country"
+install -Dm644 -t "$target/etc/systemd/system" \
+    "$SHARE/target/etc/systemd/system/surface-wifi-country.service"
+if [[ "$SURFACE_LANG" == de && -f "$target/etc/conf.d/wireless-regdom" ]]; then
+    sed -i 's/^#\(WIRELESS_REGDOM="DE"\)/\1/' "$target/etc/conf.d/wireless-regdom"
+fi
+arch-chroot "$target" systemctl enable surface-wifi-country.service
 
 # Werkzeuge auch im installierten System bereitstellen
 install -Dm755 -t "$target/usr/local/bin" \

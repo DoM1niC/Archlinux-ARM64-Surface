@@ -85,9 +85,11 @@ linux-surface wiki and issues.
 and keyboard backlight,
 touchpad, touchscreen, front camera, NVMe, USB, Wi-Fi, Bluetooth, audio,
 battery reporting and GNOME work; the boot takes about 5 s. Suspend and
-resume work (tested with several minutes of sleep): touchpad and touchscreen
-are powered off in standby and answer again about 3 s after opening the lid;
-the standby power draw was not measured. On the 10-core X Plus the
+resume work (tested with 17 hours of sleep): touchpad and touchscreen
+are powered off in standby and answer again about 3 s after opening the lid.
+In standby the battery loses about 1 % per hour (roughly 0.5 W): only the CPU
+cores sleep, the kernel does not reach the deepest SoC sleep state (`cxsd`)
+yet. There is no hibernation. On the 10-core X Plus the
 devicetree describes 12 cores, so the live system logs `CPU7`/`CPU11 failed to
 boot` (harmless). `surface-install` detects the absent cores and records them
 as `SURFACE_DTB_CPUS_ABSENT`; `surface-dtb-update` then removes them, together
@@ -129,6 +131,10 @@ provide yet; the ISO and `surface-install` set them up automatically:
   current and rebuilt against new libraries.
 - **Bluetooth:** the controller has no address under Linux and does not show
   up in BlueZ; `surface-bt-addr` assigns a stable one at boot.
+- **Wi-Fi country:** without a regulatory domain, connecting takes 20–30 s
+  longer after boot and after every resume. `surface-wifi-country` sets the
+  country from `/etc/conf.d/wireless-regdom`; `surface-install` enters `DE`
+  there for German, otherwise please set it yourself.
 - **Front camera:** the devicetree has no camera subsystem (CAMSS) and no
   CCI buses. An overlay adds them together with the OV02C10 sensor
   ([source](overlays-src/sl7-camera.dts.in), based on patches from Omarchy);

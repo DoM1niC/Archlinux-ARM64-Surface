@@ -1,0 +1,12 @@
+[Unit]
+Description=WLAN-Land setzen / set Wi-Fi country (surface-wifi-country)
+After=sys-subsystem-net-devices-wlan0.device suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+Before=NetworkManager.service
+ConditionPathExists=/etc/conf.d/wireless-regdom
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/surface-wifi-country
+
+[Install]
+WantedBy=multi-user.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

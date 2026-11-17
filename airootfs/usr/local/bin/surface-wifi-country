@@ -1,0 +1,13 @@
+#!/bin/bash
+# Setzt das WLAN-Land (Regulierungsdomäne) aus /etc/conf.d/wireless-regdom
+# (WIRELESS_REGDOM="DE"). Ohne Land startet der WLAN-Chip (ath12k, Laptop 7)
+# mit den Weltregeln, hört das 6-GHz-Band nur passiv ab und sucht nach dem
+# ersten Beacon mit Landesangabe noch einmal von vorn – das Verbinden dauert
+# dann beim Start und nach jedem Aufwachen 20–30 s. Die Firmware startet nach
+# dem Standby neu, deshalb läuft das Skript auch nach dem Aufwachen.
+# Sets the Wi-Fi country from /etc/conf.d/wireless-regdom at boot and resume.
+WIRELESS_REGDOM=""
+# shellcheck disable=SC1091
+[[ -r /etc/conf.d/wireless-regdom ]] && source /etc/conf.d/wireless-regdom
+[[ "$WIRELESS_REGDOM" =~ ^[A-Z]{2}$ ]] || exit 0
+exec /usr/bin/iw reg set "$WIRELESS_REGDOM"
