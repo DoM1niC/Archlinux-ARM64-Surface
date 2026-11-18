@@ -41,7 +41,8 @@ for d in "$root"/usr/lib/modules/*/; do
 done
 (( kernels )) || need_xz=1
 if [[ -z "$root" && -r /proc/config.gz ]]; then
-    zcat /proc/config.gz | grep -qx 'CONFIG_FW_LOADER_COMPRESS_ZSTD=y' || need_xz=1
+    # ohne -q: grep liest zu Ende, sonst bräche zcat mit SIGPIPE ab (pipefail)
+    zcat /proc/config.gz | grep -x 'CONFIG_FW_LOADER_COMPRESS_ZSTD=y' >/dev/null || need_xz=1
 fi
 if (( ! need_xz )); then
     if [[ -f "$list" ]]; then
