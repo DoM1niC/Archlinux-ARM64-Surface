@@ -426,6 +426,18 @@ build_rootfs() {
         install -Dm644 -t "$ROOTFS/usr/lib/modules/$KERNEL_RELEASE/updates" "$KMOD_CACHE"/*.ko
     fi
 
+    # Firmware kommt zstd-komprimiert, der Kernel lädt nur xz (siehe
+    # surface-firmware-xz); vor dem Bau des Initramfs umwandeln. Läuft hier
+    # nativ statt unter Emulation. Der Hook hält es im Live-System aktuell.
+    msg2 "Wandle Firmware in xz um..."
+    install -Dm644 -t "$ROOTFS/etc/pacman.d/hooks" \
+        "$PROJECT/airootfs/usr/share/surface/target/etc/pacman.d/hooks/85-surface-firmware.hook"
+    "$PROJECT/airootfs/usr/local/bin/surface-firmware-xz" --root "$ROOTFS"
+    # Im Live-System reicht die xz-Fassung; beide zusammen machten das ISO gut
+    # 300 MB größer. Ohne die Liste räumt ein späterer Lauf des Hooks nichts ab.
+    find "$ROOTFS/usr/lib/firmware" -name '*.zst' -delete
+    rm -f "$ROOTFS/var/lib/surface/firmware-xz.list"
+
     msg2 "Passe System an (chroot)..."
     install -m755 "$PROJECT/scripts/chroot-customize.sh" "$ROOTFS/root/customize.sh"
     cat > "$ROOTFS/root/embedded.cfg" <<EOF

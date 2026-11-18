@@ -1,0 +1,59 @@
+#!/bin/bash
+# Arch Linux liefert Firmware zstd-komprimiert (*.zst). Der linux-surface-Kernel
+# lädt komprimierte Firmware aber nur im xz-Format (CONFIG_FW_LOADER_COMPRESS_XZ,
+# kein ..._ZSTD) – ohne Umwandlung fehlen WLAN, Bluetooth, GPU-Beschleunigung
+# und Ton. Dieses Skript legt neben jede *.zst-Datei unter /usr/lib/firmware
+# eine gleichnamige *.xz-Datei (bzw. einen passenden Symlink). Es läuft nach
+# jeder Änderung an der Firmware über den pacman-Hook 85-surface-firmware.hook,
+# also vor dem Hook von mkinitcpio, damit auch das Initramfs die xz-Fassung
+# bekommt.
+#
+#   surface-firmware-xz [--root VERZEICHNIS]
+#
+# Converts zstd-compressed firmware to xz, which is the only compressed format
+# the linux-surface kernel can load. Runs from a pacman hook.
+set -euo pipefail
+
+root=""
+if [[ "${1:-}" == --root ]]; then
+    root="${2%/}"
+elif [[ -n "${1:-}" ]]; then
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+fi
+
+fw="$root/usr/lib/firmware"
+list="$root/var/lib/surface/firmware-xz.list"
+[[ -d "$fw" ]] || exit 0
+cd "$fw"
+
+# Früher erzeugte Dateien entfernen, deren Vorlage es nicht mehr gibt
+if [[ -f "$list" ]]; then
+    while IFS= read -r x; do
+        z="${x%.xz}.zst"
+        [[ -e "$z" || -L "$z" ]] || rm -f -- "$x"
+    done < "$list"
+fi
+
+# Dateien: nur umwandeln, was neu ist (die xz-Datei übernimmt die Änderungszeit
+# ihrer Vorlage). Format wie vom Kernel verlangt: Prüfsumme CRC32.
+find . -type f -name '*.zst' -print0 | xargs -0 -r -n 32 -P "$(nproc)" bash -c '
+    set -eo pipefail
+    for z; do
+        x="${z%.zst}.xz"
+        [[ -f "$x" && ! -L "$x" && ! "$z" -nt "$x" && ! "$x" -nt "$z" ]] && continue
+        rm -f -- "$x"
+        zstd -dcq -- "$z" | xz -C crc32 -T1 > "$x.tmp$$"
+        touch -r "$z" "$x.tmp$$"
+        mv -f -- "$x.tmp$$" "$x"
+    done' _
+
+# Symlinks: gleiches Ziel mit der Endung .xz
+find . -type l -name '*.zst' -print0 | while IFS= read -r -d '' l; do
+    t="$(readlink "$l")"
+    [[ "$t" == *.zst ]] || continue
+    ln -sfn "${t%.zst}.xz" "${l%.zst}.xz"
+done
+
+mkdir -p "$(dirname "$list")"
+find . \( -type f -o -type l \) -name '*.xz' | sort > "$list"

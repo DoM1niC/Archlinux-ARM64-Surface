@@ -246,6 +246,17 @@ Fingerabdruck fest (`PORT_KEY_FPR` in `config.sh`).
 `USERLAND=alarm ./build.sh` baut stattdessen mit
 [Arch Linux ARM](https://archlinuxarm.org).
 
+**Firmware:** Arch Linux liefert `linux-firmware` zstd-komprimiert (`*.zst`),
+der linux-surface-Kernel kann aber nur xz-komprimierte Firmware laden. Ohne
+Umwandlung fehlen WLAN, Bluetooth, GPU-Beschleunigung und Ton.
+`surface-firmware-xz` legt deshalb neben jede `*.zst`-Datei unter
+`/usr/lib/firmware` eine `*.xz`-Datei; der pacman-Hook
+`85-surface-firmware.hook` wiederholt das nach jedem Firmware-Update, bevor
+das Initramfs neu gebaut wird. ISO und installiertes System bringen beides
+mit. Das kostet etwa noch einmal so viel Plattenplatz wie die Firmware selbst.
+Der Kernel aus diesem Repository bekommt mit dem nächsten Bau zstd-Unterstützung
+(`CONFIG_FW_LOADER_COMPRESS_ZSTD`).
+
 Ein installiertes System behält das Userland, mit dem es installiert wurde. Um
 eines von Arch Linux ARM auf den Port umzustellen: den Schlüssel aus dem Paket
 `archports-keyring` aufnehmen (Fingerabdruck prüfen), in `/etc/pacman.conf`
@@ -255,8 +266,11 @@ heißen gleich, sind aber anders signiert) und alle Pakete neu installieren, die
 der Port führt (`pacman -Qqn`). Arch Linux ARM teilt die GCC-Laufzeit in
 `libgcc`, `libstdc++` usw. auf, der Port liefert sie als ein `gcc-libs`: deren
 Dateien mit `--overwrite` übergeben, danach die Einzelpakete mit
-`pacman -Rdd --dbonly` entfernen. Zurück geht es nur auf demselben Weg in
-umgekehrter Richtung.
+`pacman -Rdd --dbonly` entfernen. Vor dem Neustart `surface-firmware-xz` und
+den zugehörigen Hook (siehe oben) aus diesem Repository installieren, einmal
+ausführen und das Initramfs neu bauen (`mkinitcpio -P`), sonst startet das
+System ohne WLAN. Zurück geht es nur auf demselben Weg in umgekehrter
+Richtung.
 
 ## Auf den USB-Stick bringen
 

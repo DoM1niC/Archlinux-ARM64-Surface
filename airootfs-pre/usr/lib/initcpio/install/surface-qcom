@@ -52,14 +52,15 @@ build() {
               "$fwdir"/qcom/a[67][0-9][0-9]_sqe.fw* "$fwdir"/qcom/a[67][0-9][0-9]_gmu.bin*; do
         [[ -e "$fw" ]] || continue
         fw="${fw#"$fwdir"/}"
-        add_firmware "${fw%.zst}"
+        fw="${fw%.zst}"
+        add_firmware "${fw%.xz}"
     done
     # ... sowie die gerätespezifische GPU-Firmware (zap shader), die der
     # Devicetree des laufenden Systems nennt – sofern sie schon vorhanden ist.
     if [[ -d /sys/firmware/devicetree/base ]]; then
         while IFS= read -r fw; do
             [[ "$fw" == *dxkms* || "$fw" == *zap* ]] || continue
-            [[ -e "$fwdir/$fw" || -e "$fwdir/$fw.zst" ]] && add_firmware "$fw"
+            [[ -e "$fwdir/$fw" || -e "$fwdir/$fw.xz" || -e "$fwdir/$fw.zst" ]] && add_firmware "$fw"
         done < <(find /sys/firmware/devicetree/base -name firmware-name -exec cat {} + 2>/dev/null | tr '\0' '\n')
     fi
 }

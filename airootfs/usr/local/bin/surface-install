@@ -370,6 +370,15 @@ if (( do_firmware )) && [[ -d /sys/firmware/devicetree/base ]]; then
                   "Firmware incomplete. Without it GPU acceleration, audio or the battery indicator are missing, for example. Catch up later with: surface-fw-extract --root $target")"
 fi
 
+# Arch Linux liefert Firmware zstd-komprimiert, der linux-surface-Kernel lädt
+# nur xz: umwandeln, bevor das Initramfs gebaut wird. Der pacman-Hook
+# wiederholt das nach jedem Firmware-Update.
+msg "$(t 'Wandle Firmware für den Kernel um (xz)' 'Converting the firmware for the kernel (xz)')"
+install -Dm755 /usr/local/bin/surface-firmware-xz "$target/usr/local/bin/surface-firmware-xz"
+install -Dm644 "$SHARE/target/etc/pacman.d/hooks/85-surface-firmware.hook" \
+    "$target/etc/pacman.d/hooks/85-surface-firmware.hook"
+surface-firmware-xz --root "$target"
+
 msg "$(t 'Erzeuge Initramfs' 'Building the initramfs')"
 arch-chroot "$target" mkinitcpio -P
 

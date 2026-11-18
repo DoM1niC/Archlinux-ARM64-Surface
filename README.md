@@ -246,6 +246,16 @@ that repository. The build pins the signing key by its fingerprint
 `USERLAND=alarm ./build.sh` builds with [Arch Linux ARM](https://archlinuxarm.org)
 instead.
 
+**Firmware:** Arch Linux ships `linux-firmware` zstd-compressed (`*.zst`), but
+the linux-surface kernel can only load xz-compressed firmware. Without a
+conversion Wi-Fi, Bluetooth, GPU acceleration and audio are missing.
+`surface-firmware-xz` therefore puts an `*.xz` file next to every `*.zst`
+file below `/usr/lib/firmware`; the pacman hook `85-surface-firmware.hook`
+repeats that after every firmware update, before the initramfs is rebuilt.
+ISO and installed system both carry it. It costs about as much disk space
+again as the firmware itself. The kernel built from this repository gets zstd
+support with its next build (`CONFIG_FW_LOADER_COMPRESS_ZSTD`).
+
 An installed system keeps the userland it was installed with. To move one from
 Arch Linux ARM to the port: add the key from the package `archports-keyring`
 (check the fingerprint), replace `[core]`, `[extra]`, `[alarm]` and `[aur]` in
@@ -254,8 +264,11 @@ Arch Linux ARM to the port: add the key from the package `archports-keyring`
 signatures) and reinstall every package the port carries (`pacman -Qqn`).
 Arch Linux ARM splits the GCC runtime into `libgcc`, `libstdc++` and so on,
 the port ships it as one `gcc-libs`: pass those files with `--overwrite`, then
-remove the split packages with `pacman -Rdd --dbonly`. There is no way back
-other than doing the same in reverse.
+remove the split packages with `pacman -Rdd --dbonly`. Before rebooting,
+install `surface-firmware-xz` and its hook (see above) from this repository,
+run it once and rebuild the initramfs (`mkinitcpio -P`), otherwise the system
+comes up without Wi-Fi. There is no way back other than doing the same in
+reverse.
 
 ## Getting it onto a USB drive
 
