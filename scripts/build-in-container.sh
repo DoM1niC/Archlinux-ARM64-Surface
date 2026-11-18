@@ -617,7 +617,7 @@ EOF
             [[ "$id" =~ ^\s*(#|$) ]] && continue
             name="${name//\"/\\\"}"   # Anführungszeichen (Zoll) für GRUB maskieren
             cat <<EOF
-menuentry "Arch Linux ARM – $name" --id $id {
+menuentry "Arch Linux – $name" --id $id {
     echo "\$t_kernel"
     linux /boot/vmlinuz-linux-surface \$base_args $args
     echo "\$t_dtb $dtb..."
@@ -630,7 +630,7 @@ menuentry "Arch Linux ARM – $name" --id $id {
 EOF
         done < "$PROJECT/devices.conf"
         cat <<'EOF'
-menuentry "Arch Linux ARM – $t_generic" --id generic {
+menuentry "Arch Linux – $t_generic" --id generic {
     linux /boot/vmlinuz-linux-surface $base_args console=tty0 console=ttyAMA0
     initrd /boot/initramfs-linux-surface.img
 }
@@ -727,7 +727,7 @@ EOF
     xorriso -no_rc -as mkisofs \
         -iso-level 3 -full-iso9660-filenames -joliet -joliet-long -rational-rock \
         -volid "$ISO_LABEL" \
-        -appid "Arch Linux ARM Live/Install für Snapdragon-Surface" \
+        -appid "Arch Linux Live/Install für Snapdragon-Surface" \
         -publisher "lokaler Build" \
         -preparer "xorriso" \
         --modification-date="${ISO_UUID//-/}" \

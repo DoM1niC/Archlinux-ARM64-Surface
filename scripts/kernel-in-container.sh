@@ -47,7 +47,7 @@ cat >> /build/makepkg-aarch64.conf <<EOF
 MAKEFLAGS="-j$(nproc)"
 PKGEXT='.pkg.tar.zst'
 COMPRESSZST=(zstd -c -T0 -19 -)
-PACKAGER="Arch Linux ARM for Surface <https://git.3dns.eu/dom1nic/archlinux_arm64_surface>"
+PACKAGER="Arch Linux ARM64 for Surface <https://git.3dns.eu/dom1nic/archlinux_arm64_surface>"
 EOF
 
 cd /build/pkg

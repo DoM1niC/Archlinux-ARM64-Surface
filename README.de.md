@@ -13,7 +13,7 @@
 > [selbst bauen](#bauen).
 
 <p align="center">
-  <img src="docs/images/surface-laptop-7-gnome.jpg" alt="Surface Laptop 7 mit GNOME unter Arch Linux ARM, Tastaturbeleuchtung an, GNOME-Schnelleinstellungen geöffnet" height="420">
+  <img src="docs/images/surface-laptop-7-gnome.jpg" alt="Surface Laptop 7 mit GNOME unter Arch Linux, Tastaturbeleuchtung an, GNOME-Schnelleinstellungen geöffnet" height="420">
   &nbsp;
   <img src="docs/images/surface-laptop-7-live-system.jpg" alt="Das Live-System nach dem Start vom ISO auf einem Surface Laptop 7: automatische root-Anmeldung und Übersicht der Hilfsbefehle" height="420">
 </p>

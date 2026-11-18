@@ -138,6 +138,14 @@ EOF
 exec /usr/local/bin/surface-uki
 EOF
     chmod 755 /etc/initcpio/post/surface-uki
+    # Der Hook des Pakets sbctl will ohne UKI von mkinitcpio den Kernel selbst
+    # signieren; der ist auf arm64 gzip-gepackt und kein EFI-Programm, also
+    # endete jeder mkinitcpio-Lauf mit einer Fehlermeldung. Signiert wird das
+    # UKI von surface-uki; diese gleichnamige Datei ersetzt den Hook.
+    printf '%s\n' '#!/bin/bash' \
+        '# Replaces /usr/lib/initcpio/post/sbctl: surface-uki signs the UKI.' \
+        'exit 0' > /etc/initcpio/post/sbctl
+    chmod 755 /etc/initcpio/post/sbctl
 
     msg "$(t 'Baue das UKI' 'Building the UKI')"
     /usr/local/bin/surface-uki

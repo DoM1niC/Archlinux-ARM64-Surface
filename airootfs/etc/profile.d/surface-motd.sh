@@ -4,8 +4,8 @@ if [ -n "${PS1-}" ] && [ -z "${SURFACE_MOTD_SHOWN-}" ] && [ -d /run/archiso ]; t
     if [ "$(cat /etc/surface/lang 2>/dev/null)" = en ]; then
         cat <<'MOTD'
 
-  Arch Linux ARM – live/installation system for Snapdragon-based Surface devices
-  ------------------------------------------------------------------------------
+  Arch Linux – live/installation system for Snapdragon-based Surface devices
+  --------------------------------------------------------------------------
 
   Show device:           surface-device
   Language / keyboard:   surface-locale --lang de --keymap de-latin1
@@ -22,8 +22,8 @@ MOTD
     else
         cat <<'MOTD'
 
-  Arch Linux ARM – Live-/Installationssystem für Snapdragon-Surface-Geräte
-  ------------------------------------------------------------------------
+  Arch Linux – Live-/Installationssystem für Snapdragon-Surface-Geräte
+  --------------------------------------------------------------------
 
   Gerät anzeigen:        surface-device
   Sprache / Tastatur:    surface-locale --lang en --keymap us

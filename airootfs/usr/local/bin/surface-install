@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installiert Arch Linux ARM mit linux-surface-Kernel in ein vorbereitetes,
+# Installiert Arch Linux mit linux-surface-Kernel in ein vorbereitetes,
 # eingehängtes Zielverzeichnis.
 #
 # Partitionieren, Formatieren und Einhängen bleibt bewusst Handarbeit (wie bei
@@ -13,7 +13,7 @@ source /usr/share/surface/i18n.sh
 usage() {
     if [[ "$SURFACE_LANG" == en ]]; then
         cat <<'USAGE'
-Installs Arch Linux ARM with the linux-surface kernel into a prepared, mounted
+Installs Arch Linux with the linux-surface kernel into a prepared, mounted
 target directory. Partitioning, formatting and mounting are left to you (as in
 a regular Arch installation). Example:
 
@@ -35,7 +35,7 @@ Usage:
 USAGE
     else
         cat <<'USAGE'
-Installiert Arch Linux ARM mit linux-surface-Kernel in ein vorbereitetes,
+Installiert Arch Linux mit linux-surface-Kernel in ein vorbereitetes,
 eingehängtes Zielverzeichnis. Partitionieren, Formatieren und Einhängen bleibt
 Handarbeit (wie bei der normalen Arch-Installation). Beispiel:
 

@@ -66,7 +66,7 @@ if [ -n "${SURFACE_DTB}" ]; then
     fi
 fi
 
-surface_entry "Arch Linux ARM (${SURFACE_KERNEL})" "surface" \
+surface_entry "Arch Linux (${SURFACE_KERNEL})" "surface" \
     "${SURFACE_CMDLINE} ${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}" \
     "initramfs-${SURFACE_KERNEL}.img"
 
@@ -75,6 +75,6 @@ if [ -e "/boot/initramfs-${SURFACE_KERNEL}-fallback.img" ]; then
 else
     fallback_initrd="initramfs-${SURFACE_KERNEL}.img"
 fi
-surface_entry "Arch Linux ARM (${SURFACE_KERNEL}, verbose)" "surface-verbose" \
+surface_entry "Arch Linux (${SURFACE_KERNEL}, verbose)" "surface-verbose" \
     "${SURFACE_CMDLINE} ${GRUB_CMDLINE_LINUX}" \
     "${fallback_initrd}"
