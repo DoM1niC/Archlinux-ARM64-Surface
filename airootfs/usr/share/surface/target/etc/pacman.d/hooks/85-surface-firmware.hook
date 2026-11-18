@@ -1,14 +1,15 @@
-# Wandelt zstd-komprimierte Firmware in xz um; nur das kann der
-# linux-surface-Kernel laden (siehe surface-firmware-xz). Läuft vor dem Hook
-# von mkinitcpio (90-mkinitcpio-install.hook).
+# Wandelt zstd-komprimierte Firmware in xz um, solange ein Kernel zstd nicht
+# laden kann (siehe surface-firmware-xz). Läuft vor dem Hook von mkinitcpio
+# (90-mkinitcpio-install.hook).
 [Trigger]
 Type = Path
 Operation = Install
 Operation = Upgrade
 Operation = Remove
 Target = usr/lib/firmware/*
+Target = usr/lib/modules/*/vmlinuz
 
 [Action]
-Description = Converting firmware to xz for the linux-surface kernel...
+Description = Matching the firmware compression to the kernel...
 When = PostTransaction
 Exec = /usr/local/bin/surface-firmware-xz

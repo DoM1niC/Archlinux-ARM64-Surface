@@ -254,8 +254,9 @@ Umwandlung fehlen WLAN, Bluetooth, GPU-Beschleunigung und Ton.
 `85-surface-firmware.hook` wiederholt das nach jedem Firmware-Update, bevor
 das Initramfs neu gebaut wird. ISO und installiertes System bringen beides
 mit. Das kostet etwa noch einmal so viel Plattenplatz wie die Firmware selbst.
-Der Kernel aus diesem Repository bekommt mit dem nächsten Bau zstd-Unterstützung
-(`CONFIG_FW_LOADER_COMPRESS_ZSTD`).
+Der Kernel aus diesem Repository (`surface-kernel`, ab 7.3.1-1.2) lädt zstd
+selbst (`CONFIG_FW_LOADER_COMPRESS_ZSTD`); sobald alle installierten Kernel und
+der laufende das können, entfernt das Skript die xz-Kopien wieder.
 
 Ein installiertes System behält das Userland, mit dem es installiert wurde. Um
 eines von Arch Linux ARM auf den Port umzustellen: den Schlüssel aus dem Paket

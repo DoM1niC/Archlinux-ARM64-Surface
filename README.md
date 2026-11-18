@@ -253,8 +253,10 @@ conversion Wi-Fi, Bluetooth, GPU acceleration and audio are missing.
 file below `/usr/lib/firmware`; the pacman hook `85-surface-firmware.hook`
 repeats that after every firmware update, before the initramfs is rebuilt.
 ISO and installed system both carry it. It costs about as much disk space
-again as the firmware itself. The kernel built from this repository gets zstd
-support with its next build (`CONFIG_FW_LOADER_COMPRESS_ZSTD`).
+again as the firmware itself. The kernel built from this repository
+(`surface-kernel`, from 7.3.1-1.2) loads zstd itself
+(`CONFIG_FW_LOADER_COMPRESS_ZSTD`); once every installed kernel and the
+running one can, the script removes the xz copies again.
 
 An installed system keeps the userland it was installed with. To move one from
 Arch Linux ARM to the port: add the key from the package `archports-keyring`

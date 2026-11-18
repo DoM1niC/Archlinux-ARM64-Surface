@@ -1,24 +1,28 @@
 #!/bin/bash
-# Arch Linux liefert Firmware zstd-komprimiert (*.zst). Der linux-surface-Kernel
-# lädt komprimierte Firmware aber nur im xz-Format (CONFIG_FW_LOADER_COMPRESS_XZ,
-# kein ..._ZSTD) – ohne Umwandlung fehlen WLAN, Bluetooth, GPU-Beschleunigung
-# und Ton. Dieses Skript legt neben jede *.zst-Datei unter /usr/lib/firmware
-# eine gleichnamige *.xz-Datei (bzw. einen passenden Symlink). Es läuft nach
-# jeder Änderung an der Firmware über den pacman-Hook 85-surface-firmware.hook,
-# also vor dem Hook von mkinitcpio, damit auch das Initramfs die xz-Fassung
-# bekommt.
+# Arch Linux liefert Firmware zstd-komprimiert (*.zst). Der Kernel von
+# linux-surface lädt komprimierte Firmware aber nur im xz-Format
+# (CONFIG_FW_LOADER_COMPRESS_XZ, kein ..._ZSTD) – ohne Umwandlung fehlen WLAN,
+# Bluetooth, GPU-Beschleunigung und Ton. Dieses Skript legt neben jede
+# *.zst-Datei unter /usr/lib/firmware eine gleichnamige *.xz-Datei (bzw. einen
+# passenden Symlink). Es läuft nach jeder Änderung an Firmware oder Kernel über
+# den pacman-Hook 85-surface-firmware.hook, also vor dem Hook von mkinitcpio,
+# damit auch das Initramfs die passende Fassung bekommt.
+#
+# Können alle installierten Kernel und der laufende Kernel zstd laden (Kernel
+# aus dem Repository surface-kernel ab 7.3.1-1.2, Eintrag "firmware-zstd" in
+# der Datei surface-drivers im Modulordner), entfernt es die xz-Kopien wieder.
 #
 #   surface-firmware-xz [--root VERZEICHNIS]
 #
-# Converts zstd-compressed firmware to xz, which is the only compressed format
-# the linux-surface kernel can load. Runs from a pacman hook.
+# Converts zstd-compressed firmware to xz for kernels that cannot load zstd,
+# and removes those copies once every kernel can. Runs from a pacman hook.
 set -euo pipefail
 
 root=""
 if [[ "${1:-}" == --root ]]; then
     root="${2%/}"
 elif [[ -n "${1:-}" ]]; then
-    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 fi
 
@@ -26,6 +30,26 @@ fw="$root/usr/lib/firmware"
 list="$root/var/lib/surface/firmware-xz.list"
 [[ -d "$fw" ]] || exit 0
 cd "$fw"
+
+# Braucht noch ein Kernel die xz-Fassung? Ohne --root zählt auch der laufende
+# Kernel: Nach einem Kernel-Update bleibt sie bis zum Neustart liegen.
+need_xz=0 kernels=0
+for d in "$root"/usr/lib/modules/*/; do
+    [[ -e "$d/vmlinuz" ]] || continue
+    kernels=1
+    grep -qxs firmware-zstd "$d/surface-drivers" || need_xz=1
+done
+(( kernels )) || need_xz=1
+if [[ -z "$root" && -r /proc/config.gz ]]; then
+    zcat /proc/config.gz | grep -qx 'CONFIG_FW_LOADER_COMPRESS_ZSTD=y' || need_xz=1
+fi
+if (( ! need_xz )); then
+    if [[ -f "$list" ]]; then
+        while IFS= read -r x; do rm -f -- "$x"; done < "$list"
+        rm -f "$list"
+    fi
+    exit 0
+fi
 
 # Früher erzeugte Dateien entfernen, deren Vorlage es nicht mehr gibt
 if [[ -f "$list" ]]; then

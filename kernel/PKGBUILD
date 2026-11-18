@@ -19,7 +19,7 @@
 pkgbase="linux-surface"
 pkgver="7.3.1"
 _surfacerel="1"                 # pkgrel von linux-surface, auf dem wir aufbauen
-pkgrel="${_surfacerel}.1"       # .N = eigene Revision
+pkgrel="${_surfacerel}.2"       # .N = eigene Revision
 
 _pkgdesc="Linux Surface (with Surface Laptop 7 drivers)"
 
@@ -99,7 +99,8 @@ prepare() {
     make olddefconfig
 
     local opt
-    for opt in QCOM_GPI_DMA SPI_QCOM_GENI_QSPI SPI_HID HID_SURFACE_KBD_BACKLIGHT ATH12K ARM_SCMI_CPUFREQ; do
+    for opt in QCOM_GPI_DMA SPI_QCOM_GENI_QSPI SPI_HID HID_SURFACE_KBD_BACKLIGHT ATH12K ARM_SCMI_CPUFREQ \
+               FW_LOADER_COMPRESS_ZSTD; do
         grep -Eq "^CONFIG_${opt}=[ym]" .config || { error "CONFIG_${opt} ist nicht gesetzt"; return 1; }
     done
 }
@@ -136,8 +137,10 @@ _package() {
     # Used by mkinitcpio to name the kernel
     echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
 
-    # surface-kmods erkennt daran, dass die Zusatztreiber schon enthalten sind
-    printf '%s\n' wifi touchpad kbd scmi-turbo |
+    # surface-kmods erkennt daran, dass die Zusatztreiber schon enthalten sind;
+    # surface-firmware-xz am Eintrag firmware-zstd, dass der Kernel
+    # zstd-komprimierte Firmware lädt
+    printf '%s\n' wifi touchpad kbd scmi-turbo firmware-zstd |
         install -Dm644 /dev/stdin "${modulesdir}/surface-drivers"
 
     msg2 "Installing modules..."
