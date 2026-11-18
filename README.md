@@ -20,7 +20,9 @@
 
 Builds a bootable live/installation ISO (aarch64, UEFI) with
 
-- **userland** from [Arch Linux ARM](https://archlinuxarm.org),
+- **userland** from the [aarch64 port of Arch Linux](https://ports.archlinux.page/aarch64/)
+  (not an official port yet; alternatively from
+  [Arch Linux ARM](https://archlinuxarm.org), see [Userland](#userland)),
 - the **kernel** `linux-surface` from the aarch64 package repository of
   [linux-surface](https://github.com/linux-surface) (it ships the devicetrees
   and drivers for the Snapdragon Surfaces),
@@ -127,7 +129,7 @@ provide yet; the ISO and `surface-install` set them up automatically:
   [Omarchy's package repository](https://github.com/omacom/omarchy-pkgs)
   (with their patch that turns a press on the force-sensing touchpad into a
   click); ISO and installed system add it as the last repository, so it
-  cannot replace Arch Linux ARM packages, and `pacman -Syu` keeps iptsd
+  cannot replace packages of the userland, and `pacman -Syu` keeps iptsd
   current and rebuilt against new libraries.
 - **Bluetooth:** the controller has no address under Linux and does not show
   up in BlueZ; `surface-bt-addr` assigns a stable one at boot.
@@ -229,6 +231,31 @@ Smoke test in QEMU (no Surface hardware, generic boot entry):
 ```sh
 scripts/test-qemu.sh          # serial console, quit with Ctrl+A, X
 ```
+
+### Userland
+
+By default the packages come from the community repositories of the
+[aarch64 port of Arch Linux](https://ports.archlinux.page/aarch64/)
+(`forge`, `core`, `extra` at `arch-linux-repo.drzee.net`, built for ARMv8.2
+and newer). They follow Arch Linux closely and carry nearly all of its
+packages. The port is not official yet: the packages are neither built on Arch
+Linux infrastructure nor signed by Arch Linux staff, but by the operator of
+that repository. The build pins the signing key by its fingerprint
+(`PORT_KEY_FPR` in `config.sh`).
+
+`USERLAND=alarm ./build.sh` builds with [Arch Linux ARM](https://archlinuxarm.org)
+instead.
+
+An installed system keeps the userland it was installed with. To move one from
+Arch Linux ARM to the port: add the key from the package `archports-keyring`
+(check the fingerprint), replace `[core]`, `[extra]`, `[alarm]` and `[aur]` in
+`/etc/pacman.conf` with `[forge]`, `[core]` and `[extra]` of the port, empty
+`/var/cache/pacman/pkg` (the package files have the same names but different
+signatures) and reinstall every package the port carries (`pacman -Qqn`).
+Arch Linux ARM splits the GCC runtime into `libgcc`, `libstdc++` and so on,
+the port ships it as one `gcc-libs`: pass those files with `--overwrite`, then
+remove the split packages with `pacman -Rdd --dbonly`. There is no way back
+other than doing the same in reverse.
 
 ## Getting it onto a USB drive
 
@@ -458,6 +485,7 @@ Other building blocks
   project)
 - [linux-surface/grub-image-aarch64](https://github.com/linux-surface/grub-image-aarch64)
   – patched GRUB for the Pro X
+- [Arch Linux Ports – aarch64](https://ports.archlinux.page/aarch64/)
 - [Arch Linux ARM](https://archlinuxarm.org) and its
   [PKGBUILDs](https://github.com/archlinuxarm/PKGBUILDs)
 - [archiso](https://gitlab.archlinux.org/archlinux/archiso) /

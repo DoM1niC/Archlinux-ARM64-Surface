@@ -21,7 +21,9 @@
 
 Baut ein bootfähiges Live-/Installations-ISO (aarch64, UEFI) mit
 
-- **Userland** aus [Arch Linux ARM](https://archlinuxarm.org),
+- **Userland** aus dem [aarch64-Port von Arch Linux](https://ports.archlinux.page/aarch64/)
+  (noch kein offizieller Port; wahlweise aus
+  [Arch Linux ARM](https://archlinuxarm.org), siehe [Userland](#userland)),
 - **Kernel** `linux-surface` aus dem aarch64-Paket-Repository von
   [linux-surface](https://github.com/linux-surface) (enthält die Devicetrees
   und Treiber für die Snapdragon-Surfaces),
@@ -127,7 +129,7 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   [Paket-Repository von Omarchy](https://github.com/omacom/omarchy-pkgs)
   (mit deren Patch, der das Drücken des drucksensitiven Touchpads zum Klick
   macht); ISO und installiertes System binden es als letztes Repository ein,
-  es kann also keine Pakete von Arch Linux ARM ersetzen, und `pacman -Syu`
+  es kann also keine Pakete des Userlands ersetzen, und `pacman -Syu`
   hält iptsd aktuell und gegen neue Bibliotheken gebaut.
 - **Bluetooth:** Der Controller hat unter Linux keine Adresse und taucht in
   BlueZ nicht auf; `surface-bt-addr` vergibt beim Start eine feste.
@@ -229,6 +231,32 @@ Rauchtest in QEMU (ohne Surface-Hardware, generischer Booteintrag):
 ```sh
 scripts/test-qemu.sh          # serielle Konsole, beenden mit Strg+A, X
 ```
+
+### Userland
+
+Die Pakete kommen standardmäßig aus den Community-Repositories des
+[aarch64-Ports von Arch Linux](https://ports.archlinux.page/aarch64/)
+(`forge`, `core`, `extra` unter `arch-linux-repo.drzee.net`, gebaut für ARMv8.2
+und neuer). Sie folgen Arch Linux eng und führen fast alle seiner Pakete. Der
+Port ist noch nicht offiziell: Die Pakete werden weder auf der Infrastruktur
+von Arch Linux gebaut noch von dessen Team signiert, sondern vom Betreiber
+dieses Repositorys. Der Build legt den Signaturschlüssel über seinen
+Fingerabdruck fest (`PORT_KEY_FPR` in `config.sh`).
+
+`USERLAND=alarm ./build.sh` baut stattdessen mit
+[Arch Linux ARM](https://archlinuxarm.org).
+
+Ein installiertes System behält das Userland, mit dem es installiert wurde. Um
+eines von Arch Linux ARM auf den Port umzustellen: den Schlüssel aus dem Paket
+`archports-keyring` aufnehmen (Fingerabdruck prüfen), in `/etc/pacman.conf`
+`[core]`, `[extra]`, `[alarm]` und `[aur]` durch `[forge]`, `[core]` und
+`[extra]` des Ports ersetzen, `/var/cache/pacman/pkg` leeren (die Paketdateien
+heißen gleich, sind aber anders signiert) und alle Pakete neu installieren, die
+der Port führt (`pacman -Qqn`). Arch Linux ARM teilt die GCC-Laufzeit in
+`libgcc`, `libstdc++` usw. auf, der Port liefert sie als ein `gcc-libs`: deren
+Dateien mit `--overwrite` übergeben, danach die Einzelpakete mit
+`pacman -Rdd --dbonly` entfernen. Zurück geht es nur auf demselben Weg in
+umgekehrter Richtung.
 
 ## Auf den USB-Stick bringen
 
@@ -467,6 +495,7 @@ Weitere Bausteine
   Projekt)
 - [linux-surface/grub-image-aarch64](https://github.com/linux-surface/grub-image-aarch64)
   – gepatchtes GRUB für das Pro X
+- [Arch Linux Ports – aarch64](https://ports.archlinux.page/aarch64/)
 - [Arch Linux ARM](https://archlinuxarm.org) und dessen
   [PKGBUILDs](https://github.com/archlinuxarm/PKGBUILDs)
 - [archiso](https://gitlab.archlinux.org/archlinux/archiso) /

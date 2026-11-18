@@ -7,7 +7,16 @@ ISO_NAME="${ISO_NAME:-archlinux-arm64-surface}"
 ISO_LABEL="${ISO_LABEL:-ARCH_SURFACE}"
 
 # --- Paketquellen ------------------------------------------------------------
-# Arch Linux ARM (Userland) und linux-surface (Kernel für Snapdragon-Surfaces)
+# Userland: "port" = aarch64-Port von Arch Linux (https://ports.archlinux.page/aarch64/,
+# noch nicht offiziell; Repositories forge/core/extra, gebaut für ARMv8.2+) oder
+# "alarm" = Arch Linux ARM. Der Kernel kommt in beiden Fällen von linux-surface.
+# Ein installiertes System wechselt nicht von selbst: Dort zählt die
+# /etc/pacman.conf, siehe README (Abschnitt zum Wechsel von Arch Linux ARM).
+USERLAND="${USERLAND:-port}"
+PORT_MIRROR="${PORT_MIRROR:-https://arch-linux-repo.drzee.net/arch/\$repo/os/\$arch}"
+# Signaturschlüssel des Ports ("np <key@drzee.net>") aus dem Paket
+# archports-keyring; der Build bricht ab, wenn es einen anderen enthält.
+PORT_KEY_FPR="9B2C213B21883BB65CE2FB900CF25682E6BA0751"
 ALARM_MIRROR="${ALARM_MIRROR:-http://mirror.archlinuxarm.org/\$arch/\$repo}"
 SURFACE_REPO="${SURFACE_REPO:-https://pkg.surfacelinux.com/arch-aarch64/}"
 SURFACE_KEY_URL="${SURFACE_KEY_URL:-https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc}"
@@ -74,7 +83,7 @@ WITH_SL7_KMODS="${WITH_SL7_KMODS:-1}"
 # Paket-Repository von Omarchy, das iptsd pflegt und neu baut, wenn fmt oder
 # spdlog aktualisiert werden (ein selbst gebautes Paket bräche dann). ISO und
 # installierte Systeme binden es als letztes Repository ein: Pakete, die es auch
-# bei Arch Linux ARM gibt, kommen weiter von dort.
+# im Userland-Repository gibt, kommen weiter von dort.
 WITH_IPTSD="${WITH_IPTSD:-1}"
 OMARCHY_REPO="${OMARCHY_REPO:-https://pkgs.omarchy.org/edge/\$arch}"
 # Signaturschlüssel "Omarchy <pkgs@omarchy.org>"; der Build bricht ab, wenn das

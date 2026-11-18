@@ -2,7 +2,10 @@
 # Erzeugt den pacman-Schlüsselbund des Live-Systems beim ersten Start.
 set -e
 pacman-key --init
-pacman-key --populate archlinuxarm
+# Userland: aarch64-Port von Arch Linux (archports) oder Arch Linux ARM
+for kr in archports archlinuxarm; do
+    [[ -e /usr/share/pacman/keyrings/$kr.gpg ]] && pacman-key --populate "$kr"
+done
 # Omarchy (iptsd), falls das Paket omarchy-keyring installiert ist
 [[ -e /usr/share/pacman/keyrings/omarchy.gpg ]] && pacman-key --populate omarchy
 pacman-key --add /usr/share/surface/surface.asc

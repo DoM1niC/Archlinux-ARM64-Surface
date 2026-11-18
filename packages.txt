@@ -2,7 +2,6 @@
 
 # Basis
 base
-archlinuxarm-keyring
 sudo
 less
 nano

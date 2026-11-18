@@ -17,6 +17,20 @@ ESPDIR="$BUILD/esp"             # Inhalt der EFI-Systempartition
 DL="$BUILD/downloads"
 PACCONF="$BUILD/pacman-aarch64.conf"
 
+case "$USERLAND" in
+    port)
+        # Eigene Verzeichnisse: Paketdateien heißen wie bei Arch Linux ARM, sind
+        # aber anders gebaut und signiert.
+        PKGCACHE=/var/cache/pacman/pkg-aarch64/port
+        PACDB="$BUILD/pacdb-port"
+        USERLAND_KEYRING=archports-keyring ;;
+    alarm)
+        PKGCACHE=/var/cache/pacman/pkg-aarch64
+        PACDB="$BUILD/pacdb"
+        USERLAND_KEYRING=archlinuxarm-keyring ;;
+    *)  echo "USERLAND muss 'port' oder 'alarm' sein (ist: $USERLAND)." >&2; exit 1 ;;
+esac
+
 msg()  { printf '\033[1;32m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
 msg2() { printf '\033[1;34m  ->\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31mFEHLER:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -57,19 +71,38 @@ git_checkout() { # repo ref ziel
 # Schlüssel und pacman-Konfiguration für das Zielsystem
 # ---------------------------------------------------------------------------
 setup_pacman() {
-    msg "Richte pacman-Schlüssel ein (Arch Linux ARM, linux-surface)..."
-
-    local kr=/usr/share/pacman/keyrings f
-    for f in archlinuxarm.gpg archlinuxarm-trusted archlinuxarm-revoked; do
-        curl -fsSL --retry 3 -o "$kr/$f" "$ALARM_KEYRING_URL/$f"
-    done
-    grep -q "^${ALARM_MASTER_KEY}:" "$kr/archlinuxarm-trusted" \
-        || die "Unerwarteter Arch-Linux-ARM-Master-Key im Keyring."
+    msg "Richte pacman-Schlüssel ein (Userland: $USERLAND, linux-surface)..."
 
     fetch "$SURFACE_KEY_URL" "$DL/surface.asc"
+    mkdir -p "$PKGCACHE"
 
     pacman-key --init >/dev/null 2>&1
-    pacman-key --populate archlinuxarm >/dev/null 2>&1
+    local userland_repos
+    if [[ "$USERLAND" == port ]]; then
+        setup_port_key
+        userland_repos="[forge]
+Server = $PORT_MIRROR
+[core]
+Server = $PORT_MIRROR
+[extra]
+Server = $PORT_MIRROR"
+    else
+        local kr=/usr/share/pacman/keyrings f
+        for f in archlinuxarm.gpg archlinuxarm-trusted archlinuxarm-revoked; do
+            curl -fsSL --retry 3 -o "$kr/$f" "$ALARM_KEYRING_URL/$f"
+        done
+        grep -q "^${ALARM_MASTER_KEY}:" "$kr/archlinuxarm-trusted" \
+            || die "Unerwarteter Arch-Linux-ARM-Master-Key im Keyring."
+        pacman-key --populate archlinuxarm >/dev/null 2>&1
+        userland_repos="[core]
+Server = $ALARM_MIRROR
+[extra]
+Server = $ALARM_MIRROR
+[alarm]
+Server = $ALARM_MIRROR
+[aur]
+Server = $ALARM_MIRROR"
+    fi
     pacman-key --add "$DL/surface.asc" >/dev/null 2>&1
     pacman-key --lsign-key "$SURFACE_KEY_ID" >/dev/null 2>&1
 
@@ -87,24 +120,40 @@ Server = $KERNEL_REPO
 Architecture = aarch64
 SigLevel = Required DatabaseOptional
 LocalFileSigLevel = Optional
-CacheDir = /var/cache/pacman/pkg-aarch64
+CacheDir = $PKGCACHE
 ParallelDownloads = 8
 DisableSandbox
 
-[core]
-Server = $ALARM_MIRROR
-[extra]
-Server = $ALARM_MIRROR
-[alarm]
-Server = $ALARM_MIRROR
-[aur]
-Server = $ALARM_MIRROR
+$userland_repos
 
 ${kernel_section}[linux-surface]
 Server = $SURFACE_REPO
 EOF
     [[ "$WITH_IPTSD" == 1 ]] && setup_omarchy_repo
     return 0
+}
+
+# Signaturschlüssel des aarch64-Ports: aus dem Paket archports-keyring (Repository
+# forge); muss den Fingerabdruck aus config.sh haben.
+setup_port_key() {
+    msg2 "Binde den aarch64-Port von Arch Linux ein..."
+    local url="${PORT_MIRROR//\$arch/aarch64}" tmp file fprs
+    url="${url//\$repo/forge}"
+    tmp="$(mktemp -d)"
+    curl -fsSL --retry 3 -o "$tmp/forge.db" "$url/forge.db"
+    file="$(bsdtar -xOf "$tmp/forge.db" --include '*archports-keyring-*/desc' \
+        | awk '/^%FILENAME%/ { getline; print; exit }')"
+    [[ -n "$file" ]] || die "archports-keyring nicht im Repository forge gefunden."
+    curl -fsSL --retry 3 -o "$tmp/keyring.pkg" "$url/$file"
+    bsdtar -xf "$tmp/keyring.pkg" -C "$tmp" usr/share/pacman/keyrings/archports.gpg
+    fprs="$(GNUPGHOME="$tmp" gpg --batch --with-colons --show-keys \
+        "$tmp/usr/share/pacman/keyrings/archports.gpg" 2>/dev/null \
+        | awk -F: '$1 == "pub" { p = 1; next } p && $1 == "fpr" { print $10; p = 0 }')"
+    [[ "$fprs" == "$PORT_KEY_FPR" ]] \
+        || die "Unerwarteter Schlüssel des aarch64-Ports ($fprs), erwartet $PORT_KEY_FPR."
+    pacman-key --add "$tmp/usr/share/pacman/keyrings/archports.gpg" >/dev/null 2>&1
+    pacman-key --lsign-key "$PORT_KEY_FPR" >/dev/null 2>&1
+    rm -rf "$tmp"
 }
 
 # Signaturschlüssel der Arch-Paketregistry von Gitea (Repository
@@ -162,7 +211,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Pakete, die Arch Linux ARM nicht hat, als lokales Repo bauen:
+# Pakete, die das Userland-Repository nicht hat, als lokales Repo bauen:
 #   - Qualcomm-Userspace (WLAN des Surface Pro X)
 # (iptsd kommt aus dem Omarchy-Repository, siehe setup_omarchy_repo)
 # ---------------------------------------------------------------------------
@@ -173,6 +222,7 @@ build_local_packages() {
     HAVE_LOCALREPO=1
 
     local key="q${WITH_QCOM_USERSPACE}-${QCOM_PKGBUILD_REF:0:12}"
+    [[ "$USERLAND" == alarm ]] || key+="-$USERLAND"
     local stamp="$LOCALREPO/.built-$key"
     if [[ -e "$stamp" ]]; then
         msg "Lokale Pakete sind bereits gebaut."
@@ -237,9 +287,9 @@ EOF
 # ---------------------------------------------------------------------------
 kernel_release() {
     local ver
-    mkdir -p "$BUILD/pacdb"
-    pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Sy >/dev/null
-    ver="$(pacman --config "$PACCONF" --dbpath "$BUILD/pacdb" -Si linux-surface \
+    mkdir -p "$PACDB"
+    pacman --config "$PACCONF" --dbpath "$PACDB" -Sy >/dev/null
+    ver="$(pacman --config "$PACCONF" --dbpath "$PACDB" -Si linux-surface \
             | awk '/^Version/ {print $3; exit}')"
     [[ -n "$ver" ]] || die "Version von linux-surface nicht ermittelbar."
     KERNEL_RELEASE="${ver}-surface"
@@ -308,6 +358,7 @@ build_rootfs() {
 
     local pkgs=()
     mapfile -t pkgs < <(grep -vE '^\s*(#|$)' "$PROJECT/packages.txt")
+    pkgs+=("$USERLAND_KEYRING")
     if [[ "$WITH_QCOM_USERSPACE" == 1 ]]; then
         pkgs+=(qrtr tqftpserv rmtfs-dummy-git)
     fi

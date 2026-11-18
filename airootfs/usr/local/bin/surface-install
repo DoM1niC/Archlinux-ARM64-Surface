@@ -156,9 +156,15 @@ install -Dm644 "$SHARE/target/usr/lib/initcpio/install/surface-qcom" \
 # Animationsvideos ruft GStreamer eglTerminate() für die EGL-Verbindung auf,
 # die GTK mitbenutzt.
 pkgs=(base linux-surface linux-firmware linux-firmware-qcom mkinitcpio grub efibootmgr
-      archlinuxarm-keyring sudo nano networkmanager wireless-regdb iw terminus-font
+      sudo nano networkmanager wireless-regdb iw terminus-font
       bluez bluez-utils alsa-ucm-conf alsa-utils openssh less which
       e2fsprogs dosfstools ntfs-3g cryptsetup vulkan-freedreno zram-generator)
+# Schlüsselbund des Userlands: aarch64-Port von Arch Linux oder Arch Linux ARM
+if pacman -Qq archports-keyring >/dev/null 2>&1; then
+    pkgs+=(archports-keyring)
+else
+    pkgs+=(archlinuxarm-keyring)
+fi
 case "$(findmnt -no FSTYPE "$target")" in
     btrfs) pkgs+=(btrfs-progs) ;;
     xfs)   pkgs+=(xfsprogs) ;;
@@ -237,7 +243,7 @@ if ! grep -q '^\[linux-surface\]' "$target/etc/pacman.conf"; then
 $(sed -n '/^\[linux-surface\]/,/^$/{/^Server/p}' /etc/pacman.conf)
 EOF
 fi
-# Omarchy als letztes Repository: Pakete, die es auch bei Arch Linux ARM gibt,
+# Omarchy als letztes Repository: Pakete, die es auch im Userland-Repository gibt,
 # kommen weiter von dort; aus Omarchy kommen nur iptsd und sein Schlüsselbund.
 if [[ " ${pkgs[*]} " == *" iptsd "* ]] && ! grep -q '^\[omarchy\]' "$target/etc/pacman.conf"; then
     cat >> "$target/etc/pacman.conf" <<EOF
