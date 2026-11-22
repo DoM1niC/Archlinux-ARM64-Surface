@@ -8,6 +8,7 @@
 #   - Touchpad/Touchscreen: GPI-DMA mit QSPI, spi-geni-qspi, spi-hid (ELLX,
 #     mit Standby-Fix)
 #   - Tastaturbeleuchtung als LED (hid-surface-kbd-backlight)
+#   - Videocodec (Iris) mit dem Videotakt-Treiber des X1E80100
 #   - SCMI: Taktstufen nicht als Turbo markieren, wenn die Firmware keine
 #     brauchbare Dauerfrequenz meldet (sonst kein cpufreq für die Cluster 1/2)
 # Die Treiberquellen sind dieselben, die surface-kmods für das unveränderte
@@ -19,7 +20,7 @@
 pkgbase="linux-surface"
 pkgver="7.3.1"
 _surfacerel="1"                 # pkgrel von linux-surface, auf dem wir aufbauen
-pkgrel="${_surfacerel}.2"       # .N = eigene Revision
+pkgrel="${_surfacerel}.3"       # .N = eigene Revision
 
 _pkgdesc="Linux Surface (with Surface Laptop 7 drivers)"
 
@@ -100,7 +101,7 @@ prepare() {
 
     local opt
     for opt in QCOM_GPI_DMA SPI_QCOM_GENI_QSPI SPI_HID HID_SURFACE_KBD_BACKLIGHT ATH12K ARM_SCMI_CPUFREQ \
-               FW_LOADER_COMPRESS_ZSTD; do
+               FW_LOADER_COMPRESS_ZSTD VIDEO_QCOM_IRIS SM_VIDEOCC_8550; do
         grep -Eq "^CONFIG_${opt}=[ym]" .config || { error "CONFIG_${opt} ist nicht gesetzt"; return 1; }
     done
 }

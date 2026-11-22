@@ -73,6 +73,7 @@ linux-surface.
 | Touchpad | ? | ? | – | ✓ (Zusatzmodule + iptsd) | ? | ? |
 | Touchscreen | – | – | – | ✓ (Zusatzmodule + iptsd) | – | ✓ |
 | Kameras | – | – | – | ✓ Frontkamera (Overlay + libcamera) | – | – |
+| Videocodec (Hardware, H.264/H.265) | – | – | – | ✓ (FW, Overlay) | – | – |
 | Mobilfunk (LTE/5G) | – | – | – | – | – | – |
 
 - **✓**: im Devicetree beschrieben, Treiber im Kernel vorhanden.
@@ -164,6 +165,15 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Bildsensor, die Bildverarbeitung macht libcamera. Belichtung und
   Weißabgleich regelt libcamera 0.7 nur automatisch. Die IR-Kamera (Windows
   Hello) ist nicht beschrieben.
+- **Videocodec:** Der Hardware-Codec des Snapdragon (Iris, V4L2-Decoder und
+  -Encoder für H.264/H.265) ist im SoC-Devicetree beschrieben, aber
+  abgeschaltet, weil seine Firmware vom Gerätehersteller signiert ist. Ein
+  Overlay schaltet ihn ein und nennt die Firmware
+  ([Overlay](airootfs/usr/share/surface/overlays/sl7-video.dtso));
+  `surface-fw-extract` holt `qcvss8380.mbn` wie die übrige Firmware aus
+  Windows. Der eigene Kernel bringt dafür ab 7.3.1-1.3 den Treiber
+  (`CONFIG_VIDEO_QCOM_IRIS`) und die Videotakte (`CONFIG_SM_VIDEOCC_8550`)
+  mit; im unveränderten linux-surface fehlen beide.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit
@@ -175,7 +185,7 @@ einem eigenen Repository (`[surface-kernel]` in der Gitea-Paketregistry dieses
 Projekts, in `pacman.conf` vor `[linux-surface]`). Der Kernel entspricht
 linux-surface (gleicher Quellstand, gleiche Konfiguration) und enthält
 zusätzlich die Treiber oben (WLAN-Patch, Touchpad/Touchscreen,
-Tastaturbeleuchtung) sowie einen Fix für den CPU-Takt (siehe oben)
+Tastaturbeleuchtung, Videocodec) sowie einen Fix für den CPU-Takt (siehe oben)
 ([PKGBUILD](kernel/PKGBUILD)). Die Version `7.3.1-1.1` steht für
 linux-surface `7.3.1-1` plus eigene Revision `.1`. Gebaut wird er mit
 `scripts/build-kernel.sh` per Cross-Compiler in Docker (etwa 20 Minuten auf

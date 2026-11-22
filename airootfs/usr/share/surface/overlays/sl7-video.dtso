@@ -1,0 +1,16 @@
+// Surface Laptop 7: hardware video codec (Qualcomm Iris, V4L2 decoder/encoder).
+//
+// The SoC devicetree (hamoa.dtsi) describes the codec but leaves it disabled:
+// its firmware is signed by the device vendor, so every board has to name its
+// own file. The path follows the other firmware of this device (ADSP/CDSP);
+// surface-fw-extract takes qcvss8380.mbn from the Windows driver store.
+//
+// Needs CONFIG_VIDEO_QCOM_IRIS and CONFIG_SM_VIDEOCC_8550 (the video clock
+// controller of the X1E80100), see kernel/surface-extra.config.
+/dts-v1/;
+/plugin/;
+
+&iris {
+	firmware-name = "qcom/x1e80100/microsoft/Romulus/qcvss8380.mbn";
+	status = "okay";
+};

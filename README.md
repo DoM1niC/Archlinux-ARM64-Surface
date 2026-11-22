@@ -74,6 +74,7 @@ linux-surface wiki and issues.
 | Touchpad | ? | ? | – | ✓ (extra modules + iptsd) | ? | ? |
 | Touchscreen | – | – | – | ✓ (extra modules + iptsd) | – | ✓ |
 | Cameras | – | – | – | ✓ front camera (overlay + libcamera) | – | – |
+| Video codec (hardware, H.264/H.265) | – | – | – | ✓ (FW, overlay) | – | – |
 | Cellular (LTE/5G) | – | – | – | – | – | – |
 
 - **✓**: described in the devicetree, driver present in the kernel.
@@ -162,6 +163,15 @@ provide yet; the ISO and `surface-install` set them up automatically:
   sensor and libcamera does the image processing. libcamera 0.7 only controls
   exposure and white balance automatically. The IR camera (Windows Hello) is
   not described.
+- **Video codec:** the Snapdragon's hardware codec (Iris, V4L2 decoder and
+  encoder for H.264/H.265) is described in the SoC devicetree but disabled,
+  because its firmware is signed by the device vendor. An overlay enables it
+  and names the firmware
+  ([overlay](airootfs/usr/share/surface/overlays/sl7-video.dtso));
+  `surface-fw-extract` takes `qcvss8380.mbn` from Windows like the other
+  firmware. From 7.3.1-1.3 on, our kernel includes the driver
+  (`CONFIG_VIDEO_QCOM_IRIS`) and the video clocks (`CONFIG_SM_VIDEOCC_8550`);
+  unmodified linux-surface has neither.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can
@@ -173,7 +183,7 @@ project's own repository (`[surface-kernel]` in its Gitea package registry,
 placed before `[linux-surface]` in `pacman.conf`). The kernel equals
 linux-surface (same source revision, same configuration) and additionally
 contains the drivers above (Wi-Fi patch, touchpad/touchscreen, keyboard
-backlight) plus a fix for the CPU clock (see above)
+backlight, video codec) plus a fix for the CPU clock (see above)
 ([PKGBUILD](kernel/PKGBUILD)). Version `7.3.1-1.1` means linux-surface
 `7.3.1-1` plus our revision `.1`. It is built with `scripts/build-kernel.sh`
 using a cross compiler in Docker (about 20 minutes on 16 cores). It has to be
