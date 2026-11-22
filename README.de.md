@@ -171,9 +171,15 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Overlay schaltet ihn ein und nennt die Firmware
   ([Overlay](airootfs/usr/share/surface/overlays/sl7-video.dtso));
   `surface-fw-extract` holt `qcvss8380.mbn` wie die übrige Firmware aus
-  Windows. Der eigene Kernel bringt dafür ab 7.3.1-1.3 den Treiber
+  Windows. Der eigene Kernel bringt dafür ab 7.3.1-1.4 den Treiber
   (`CONFIG_VIDEO_QCOM_IRIS`) und die Videotakte (`CONFIG_SM_VIDEOCC_8550`)
-  mit; im unveränderten linux-surface fehlen beide.
+  mit; im unveränderten linux-surface fehlen beide. Mit dem Videotakt-Treiber
+  sind alle Verbraucher der Versorgungsschienen bekannt, und der Kernel senkt
+  ungenutzte Schienen ab. Dem GPU-Takt-Controller fehlten im Devicetree die
+  Schienen MX und CX – die GPU fiel dann bei manchen Starts aus (`hangcheck
+  detected gpu lockup`); ein
+  [Patch](kernel/0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch) trägt
+  sie für alle X1E/X1P-Geräte nach.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

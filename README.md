@@ -169,9 +169,14 @@ provide yet; the ISO and `surface-install` set them up automatically:
   and names the firmware
   ([overlay](airootfs/usr/share/surface/overlays/sl7-video.dtso));
   `surface-fw-extract` takes `qcvss8380.mbn` from Windows like the other
-  firmware. From 7.3.1-1.3 on, our kernel includes the driver
+  firmware. From 7.3.1-1.4 on, our kernel includes the driver
   (`CONFIG_VIDEO_QCOM_IRIS`) and the video clocks (`CONFIG_SM_VIDEOCC_8550`);
-  unmodified linux-surface has neither.
+  unmodified linux-surface has neither. With the video clock driver every
+  consumer of the supply rails is known and the kernel lowers unused rails.
+  The GPU clock controller lacked the MX and CX rails in the devicetree, so
+  the GPU failed on some boots (`hangcheck detected gpu lockup`); a
+  [patch](kernel/0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch) adds
+  them for all X1E/X1P devices.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can

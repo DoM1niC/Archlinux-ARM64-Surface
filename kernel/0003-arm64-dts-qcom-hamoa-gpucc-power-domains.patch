@@ -1,0 +1,33 @@
+From: DoM!niC <info@dom1nic.eu>
+Subject: [PATCH] arm64: dts: qcom: hamoa: give gpucc its MX and CX power domains
+
+gpucc has no power domains, so the GPU's GDSCs (GPU_CX_GDSC, GPU_GX_GDSC)
+have no parent and the level the GMU requests on "cx" reaches no rail. This
+goes unnoticed while rpmhpd holds all rails at their highest level, which it
+does until every consumer in the devicetree has probed (sync_state). With
+the video clock controller built (CONFIG_SM_VIDEOCC_8550) that point is
+reached, the rails drop to what is actually requested, and depending on
+timing the GMU stops answering on the Surface Laptop 7:
+
+  a6xx_hfi_wait_for_msg_interrupt: Message HFI_H2F_MSG_GX_BW_PERF_VOTE
+    timed out waiting for response
+  hangcheck detected gpu lockup rb 0!
+
+Describe MX and CX as the binding (qcom,sm8450-gpucc.yaml) provides for;
+the clock driver then makes the GDSCs subdomains of both rails.
+---
+diff --git a/arch/arm64/boot/dts/qcom/hamoa.dtsi b/arch/arm64/boot/dts/qcom/hamoa.dtsi
+index 8a96ea1..61c1bda 100644
+--- a/arch/arm64/boot/dts/qcom/hamoa.dtsi
++++ b/arch/arm64/boot/dts/qcom/hamoa.dtsi
+@@ -4204,6 +4204,10 @@ gpucc: clock-controller@3d90000 {
+ 			clocks = <&bi_tcxo_div2>,
+ 				 <&gcc GCC_GPU_GPLL0_CPH_CLK_SRC>,
+ 				 <&gcc GCC_GPU_GPLL0_DIV_CPH_CLK_SRC>;
++			power-domains = <&rpmhpd RPMHPD_MX>,
++					<&rpmhpd RPMHPD_CX>;
++			required-opps = <&rpmhpd_opp_low_svs>,
++					<&rpmhpd_opp_low_svs>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 			#power-domain-cells = <1>;

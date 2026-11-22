@@ -9,6 +9,8 @@
 #     mit Standby-Fix)
 #   - Tastaturbeleuchtung als LED (hid-surface-kbd-backlight)
 #   - Videocodec (Iris) mit dem Videotakt-Treiber des X1E80100
+#   - Devicetree X1E/X1P: gpucc bekommt die Schienen MX und CX (sonst fällt
+#     die GPU aus, sobald der Videotakt-Treiber geladen ist)
 #   - SCMI: Taktstufen nicht als Turbo markieren, wenn die Firmware keine
 #     brauchbare Dauerfrequenz meldet (sonst kein cpufreq für die Cluster 1/2)
 # Die Treiberquellen sind dieselben, die surface-kmods für das unveränderte
@@ -20,7 +22,7 @@
 pkgbase="linux-surface"
 pkgver="7.3.1"
 _surfacerel="1"                 # pkgrel von linux-surface, auf dem wir aufbauen
-pkgrel="${_surfacerel}.3"       # .N = eigene Revision
+pkgrel="${_surfacerel}.4"       # .N = eigene Revision
 
 _pkgdesc="Linux Surface (with Surface Laptop 7 drivers)"
 
@@ -44,6 +46,7 @@ source=(
     "linux-surface.preset"
     "0001-surface-laptop-7-drivers-kconfig.patch"
     "0002-arm_scmi-perf-no-turbo-without-sustained-freq.patch"
+    "0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch"
 )
 sha256sums=('ec71eb4bc9457102cfdde2f76acbdeff8eb013bebc8362b76587936cadc9f7f5'
             'b76c91d0742197ccd73dfa355ebc534e6938f4fb6af03de33038182b941ac0ae'
@@ -51,6 +54,7 @@ sha256sums=('ec71eb4bc9457102cfdde2f76acbdeff8eb013bebc8362b76587936cadc9f7f5'
             'b35ff35b50b1b461e95c8ef46b34ab11ce922ae2ab9825e7ba923ef960986546'
             'SKIP'
             'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65'
+            'SKIP'
             'SKIP'
             'SKIP')
 
