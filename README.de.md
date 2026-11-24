@@ -541,3 +541,10 @@ Weitere Bausteine
 - [archiso](https://gitlab.archlinux.org/archlinux/archiso) /
   [mkinitcpio-archiso](https://gitlab.archlinux.org/archlinux/mkinitcpio/mkinitcpio-archiso)
 - [Ventoy](https://github.com/ventoy/Ventoy)
+
+## Kontakt
+
+Fragen, Testberichte von anderen Geräten oder Korrekturen sind willkommen:
+
+- Webseite: <https://dom1nic.eu/about>
+- Matrix: [@dom1nic:3dns.eu](https://matrix.to/#/@dom1nic:3dns.eu)

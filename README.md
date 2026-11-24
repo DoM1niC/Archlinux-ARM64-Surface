@@ -530,3 +530,10 @@ Other building blocks
 - [archiso](https://gitlab.archlinux.org/archlinux/archiso) /
   [mkinitcpio-archiso](https://gitlab.archlinux.org/archlinux/mkinitcpio/mkinitcpio-archiso)
 - [Ventoy](https://github.com/ventoy/Ventoy)
+
+## Contact
+
+Questions, test reports from other devices or fixes are welcome:
+
+- Website: <https://dom1nic.eu/about>
+- Matrix: [@dom1nic:3dns.eu](https://matrix.to/#/@dom1nic:3dns.eu)
