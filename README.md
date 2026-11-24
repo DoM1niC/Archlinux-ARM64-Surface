@@ -67,6 +67,7 @@ linux-surface wiki and issues.
 | Internal storage | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
 | USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | External monitor over USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Audio over DisplayPort | – | – | – | ✓ (15", overlay) | – | – |
 | Wi-Fi | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850, patched module) | ✓ (WCN7850) | ✓ (WCN7850) |
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Audio | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
@@ -186,6 +187,15 @@ provide yet; the ISO and `surface-install` set them up automatically:
   the GPU failed on some boots (`hangcheck detected gpu lockup`); a
   [patch](kernel/0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch) adds
   them for all X1E/X1P devices.
+- **DisplayPort audio:** the Romulus sound node declares no display-audio
+  DAI links, so the card exposes no DP PCM and the monitor's audio output
+  stays silent. An overlay adds the two links for `mdss_dp0`/`mdss_dp1` and
+  their `#sound-dai-cells`
+  ([overlay](airootfs/usr/share/surface/overlays/sl7-dpaudio.dtso)); the
+  machine driver already handles `DISPLAY_PORT_RX` jacks and the ALSA UCM
+  profile already carries the PCM, so nothing else is needed. Tested on the
+  15" over USB-C DisplayPort; the 13.8" is untested and does not get the
+  overlay yet.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can
