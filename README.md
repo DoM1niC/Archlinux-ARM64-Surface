@@ -111,6 +111,15 @@ With the unmodified linux-surface kernel only cluster 1 can be scaled. The ISO
 sets the `schedutil` governor; the kernel default `performance` would keep all
 cores at 3.4 GHz all the time.
 
+**Games:** Windows games for x86-64 run with
+[Box64](https://github.com/ptitSeb/box64) and Proton; the Adreno GPU renders
+them through Vulkan (Turnip). Tested with Dinkum.
+
+<p align="center">
+  <img src="docs/images/surface-laptop-7-box64-proton.jpg" alt="Surface Laptop 7 running the game Dinkum through Box64 and Proton" height="420">
+</p>
+<p align="center"><em>Dinkum on the Surface Laptop 7, through Box64 and Proton</em></p>
+
 The Surface Laptop 7 needs a few things the linux-surface kernel does not
 provide yet; the ISO and `surface-install` set them up automatically:
 

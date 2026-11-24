@@ -111,6 +111,15 @@ Mit dem unveränderten linux-surface-Kernel bleibt nur Cluster 1 regelbar. Das
 ISO stellt den Taktregler `schedutil` ein; mit der Voreinstellung des Kernels
 (`performance`) liefen alle Kerne dauernd mit 3,4 GHz.
 
+**Spiele:** Windows-Spiele für x86-64 laufen mit
+[Box64](https://github.com/ptitSeb/box64) und Proton; die Grafik rechnet die
+Adreno-GPU über Vulkan (Turnip). Getestet mit Dinkum.
+
+<p align="center">
+  <img src="docs/images/surface-laptop-7-box64-proton.jpg" alt="Surface Laptop 7 mit dem Spiel Dinkum, das über Box64 und Proton läuft" height="420">
+</p>
+<p align="center"><em>Dinkum auf dem Surface Laptop 7, über Box64 und Proton</em></p>
+
 Der Surface Laptop 7 braucht einige Dinge, die der linux-surface-Kernel noch
 nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
 
