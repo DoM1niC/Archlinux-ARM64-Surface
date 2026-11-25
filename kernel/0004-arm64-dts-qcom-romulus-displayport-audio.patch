@@ -1,0 +1,57 @@
+From: DoM!niC <info@dom1nic.eu>
+Subject: [PATCH] arm64: dts: qcom: x1e80100-microsoft-romulus: add DisplayPort
+ audio links
+
+The sound node of the Surface Laptop 7 has DAI links for the speakers, the
+headset codec and the microphones only. The DP controllers mdss_dp0 and
+mdss_dp1 (the two USB-C ports) are enabled and carry #sound-dai-cells, the
+audio topology (X1E80100-Romulus-tplg.bin) routes MultiMedia1 to
+DISPLAY_PORT_RX_0/1 and the machine driver creates the "DP0 Jack"/"DP1 Jack"
+controls the ALSA UCM profile expects, but without backend links the card
+has no path to the controllers and a monitor's audio output stays silent.
+
+Add the two links in the form the other X1E80100 boards use
+(x1e80100-crd.dts, x1e78100-lenovo-thinkpad-t14s.dtsi). mdss_dp2 is not
+wired on this device and stays disabled.
+---
+--- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus.dtsi
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus.dtsi
+@@ -381,6 +381,38 @@
+ 				"VA DMIC1", "VA MIC BIAS3",
+ 				"TX SWR_INPUT1", "ADC2_OUTPUT";
+ 
++		dp0-dai-link {
++			link-name = "DP0 Playback";
++
++			cpu {
++				sound-dai = <&q6apmbedai DISPLAY_PORT_RX_0>;
++			};
++
++			codec {
++				sound-dai = <&mdss_dp0>;
++			};
++
++			platform {
++				sound-dai = <&q6apm>;
++			};
++		};
++
++		dp1-dai-link {
++			link-name = "DP1 Playback";
++
++			cpu {
++				sound-dai = <&q6apmbedai DISPLAY_PORT_RX_1>;
++			};
++
++			codec {
++				sound-dai = <&mdss_dp1>;
++			};
++
++			platform {
++				sound-dai = <&q6apm>;
++			};
++		};
++
+ 		va-dai-link {
+ 			link-name = "VA Capture";
+ 

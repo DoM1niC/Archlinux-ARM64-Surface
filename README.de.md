@@ -66,7 +66,7 @@ linux-surface.
 | Interner Speicher | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
 | USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Externer Monitor über USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Ton über DisplayPort | – | – | – | ✓ (15", Overlay) | – | – |
+| Ton über DisplayPort | – | – | – | ✓ (eigener Kernel) | – | – |
 | WLAN | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850, gepatchtes Modul) | ✓ (WCN7850) | ✓ (WCN7850) |
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Ton | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
@@ -190,15 +190,18 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   detected gpu lockup`); ein
   [Patch](kernel/0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch) trägt
   sie für alle X1E/X1P-Geräte nach.
-- **Ton über DisplayPort:** Der Sound-Knoten von Romulus deklariert keine
-  DAI-Links für Display-Audio, deshalb legt die Karte kein DP-PCM an und der
-  Tonausgang des Monitors bleibt stumm. Ein Overlay ergänzt die beiden Links
-  für `mdss_dp0`/`mdss_dp1` und deren `#sound-dai-cells`
-  ([Overlay](airootfs/usr/share/surface/overlays/sl7-dpaudio.dtso)); der
-  Machinentreiber behandelt `DISPLAY_PORT_RX`-Jacks bereits, und das
-  ALSA-UCM-Profil bringt das PCM mit, mehr ist dafür nicht nötig. Getestet
-  auf dem 15" über USB-C DisplayPort; das 13,8" ist ungetestet und bekommt
-  das Overlay noch nicht.
+- **Ton über DisplayPort:** Topologie, ALSA-UCM-Profil und Machinentreiber
+  sind für Display-Audio schon vorbereitet, und die DP-Controller
+  `mdss_dp0`/`mdss_dp1` tragen `#sound-dai-cells` – dem Sound-Knoten von
+  Romulus fehlen aber die DAI-Links dorthin, deshalb bleibt der Tonausgang
+  des Monitors stumm. Ein
+  [Patch](kernel/0004-arm64-dts-qcom-romulus-displayport-audio.patch) im
+  eigenen Kernel (ab 7.3.1-1.5) ergänzt die beiden Links; danach gibt es
+  die Jacks „DP0 Jack“/„DP1 Jack“, und PipeWire bietet
+  „USB/DisplayPort 0/1“ an, sobald ein Monitor mit Ton angeschlossen ist.
+  Auf dem 15" mit Monitor über USB-C getestet (als Overlay gleichen
+  Inhalts); auf dem 13,8" sind Karte, Jacks und PipeWire-Geräte geprüft,
+  die Wiedergabe an einem Monitor noch nicht.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

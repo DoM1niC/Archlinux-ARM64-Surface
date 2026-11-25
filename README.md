@@ -67,7 +67,7 @@ linux-surface wiki and issues.
 | Internal storage | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ NVMe | ✓ UFS |
 | USB-C / USB | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | External monitor over USB-C | – | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Audio over DisplayPort | – | – | – | ✓ (15", overlay) | – | – |
+| Audio over DisplayPort | – | – | – | ✓ (own kernel) | – | – |
 | Wi-Fi | ✓ (WCN3990) | ✓ (WCN6855) | ✓ (WCN6855) | ✓ (WCN7850, patched module) | ✓ (WCN7850) | ✓ (WCN7850) |
 | Bluetooth | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Audio | – | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) | ✓ (FW) |
@@ -187,15 +187,18 @@ provide yet; the ISO and `surface-install` set them up automatically:
   the GPU failed on some boots (`hangcheck detected gpu lockup`); a
   [patch](kernel/0003-arm64-dts-qcom-hamoa-gpucc-power-domains.patch) adds
   them for all X1E/X1P devices.
-- **DisplayPort audio:** the Romulus sound node declares no display-audio
-  DAI links, so the card exposes no DP PCM and the monitor's audio output
-  stays silent. An overlay adds the two links for `mdss_dp0`/`mdss_dp1` and
-  their `#sound-dai-cells`
-  ([overlay](airootfs/usr/share/surface/overlays/sl7-dpaudio.dtso)); the
-  machine driver already handles `DISPLAY_PORT_RX` jacks and the ALSA UCM
-  profile already carries the PCM, so nothing else is needed. Tested on the
-  15" over USB-C DisplayPort; the 13.8" is untested and does not get the
-  overlay yet.
+- **DisplayPort audio:** topology, ALSA UCM profile and machine driver are
+  already prepared for display audio, and the DP controllers
+  `mdss_dp0`/`mdss_dp1` carry `#sound-dai-cells` – but the Romulus sound
+  node lacks the DAI links to them, so the monitor's audio output stays
+  silent. A
+  [patch](kernel/0004-arm64-dts-qcom-romulus-displayport-audio.patch) in
+  the project's kernel (from 7.3.1-1.5) adds the two links; the card then
+  has the jacks "DP0 Jack"/"DP1 Jack", and PipeWire offers
+  "USB/DisplayPort 0/1" once a monitor with audio is connected. Tested on
+  the 15" with a monitor over USB-C (as an overlay with the same content);
+  on the 13.8" the card, jacks and PipeWire devices are verified, playback
+  to a monitor not yet.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can
