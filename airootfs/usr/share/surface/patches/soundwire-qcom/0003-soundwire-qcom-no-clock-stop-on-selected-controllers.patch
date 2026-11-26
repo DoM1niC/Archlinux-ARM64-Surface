@@ -1,0 +1,142 @@
+From: slaren <slarengh@gmail.com>
+Subject: [PATCH] soundwire: qcom: never use clock stop on selected controllers
+
+On x1e80100 (Surface Laptop 7, two WSA884x amplifiers on the WSA bus) a
+runtime resume from clock stop sometimes loses the amplifiers: they fall
+back to device 0 and either the hardware re-enumerates them without
+software noticing (see the previous patch), or the auto-enumerator stops
+half-way through reading a Device ID after a bus clash. SWRM_MCP_SLV_STATUS
+then stays at 0x1 with a partial ID in the enumerator, nothing re-arms it,
+and the speakers are silent until a power cycle. A recovery attempted
+while the bus runs did not help: resetting the controller from a work item
+knocked the other amplifier off the bus as well.
+
+The driver already has a path that copes with this: for Peripherals
+without clock-stop support it gates the clock without ClockStopNow on
+suspend and, on resume, resets the controller, re-runs qcom_swrm_init()
+(which re-arms auto enumeration and the clash interrupt), waits for
+enumeration and resyncs the Peripheral status.
+
+Add a module parameter, force_no_clk_stop_devs, listing the controllers
+(device names, or "all") that take that path. The default is the WSA bus
+of the X1E80100, "6b10000.soundwire", so the headset and microphone buses
+keep clock stop. The choice is made at probe and latched at suspend, so
+resume always undoes exactly what suspend did. When forced, the Peripherals
+are marked UNATTACHED at suspend (they lose sync when the clock goes away)
+so that they are fully re-initialised on re-attach, and the cached slave
+status is dropped so the first post-reset change is not ignored.
+
+Cost: about 250 ms more until the first sound after the bus idled
+(610 ms against 360 ms measured), and the bus is reset on every wake of
+the controller. The same change as a module-wide switch ran 200 forced
+idle/wake cycles on the Surface Laptop 7 without a lost amplifier.
+---
+--- a/drivers/soundwire/qcom.c
++++ b/drivers/soundwire/qcom.c
+@@ -22,6 +22,41 @@
+ #include <sound/soc.h>
+ #include "bus.h"
+ 
++/*
++ * Controllers that never use clock stop. A controller on this list gates its
++ * clock on runtime suspend without ClockStopNow and, on resume, resets itself,
++ * re-arms auto enumeration and resyncs the Peripherals. Comma separated device
++ * names ("6b10000.soundwire"), or "all", or empty for none.
++ *
++ * The default is the WSA bus of the Surface Laptop 7 (X1E80100): its two
++ * WSA884x amplifiers sometimes lose sync on a clock-stop exit and then stay
++ * off the bus until the machine is power cycled.
++ */
++static char force_no_clk_stop_devs[64] = "6b10000.soundwire";
++module_param_string(force_no_clk_stop_devs, force_no_clk_stop_devs,
++		    sizeof(force_no_clk_stop_devs), 0444);
++MODULE_PARM_DESC(force_no_clk_stop_devs,
++		 "Controllers that never use clock stop and re-enumerate on every resume: device names, \"all\" or empty");
++
++static bool swrm_name_in_list(const char *name, const char *list)
++{
++	size_t len = strlen(name);
++
++	while (*list) {
++		size_t n = strcspn(list, ", ");
++
++		if ((n == len && !strncmp(list, name, n)) ||
++		    (n == 3 && !strncmp(list, "all", 3)))
++			return true;
++
++		list += n;
++		if (*list)
++			list++;
++	}
++
++	return false;
++}
++
+ #define SWRM_COMP_SW_RESET					0x008
+ #define SWRM_COMP_STATUS					0x014
+ #define SWRM_LINK_MANAGER_EE					0x018
+@@ -223,6 +258,10 @@
+ 	u32 slave_status;
+ 	u32 wr_fifo_depth;
+ 	bool clock_stop_not_supported;
++	/* this controller never uses clock stop (force_no_clk_stop_devs) */
++	bool force_no_clk_stop;
++	/* how the last runtime suspend stopped the bus; resume must match it */
++	bool suspended_no_clk_stop;
+ };
+ 
+ struct qcom_swrm_data {
+@@ -1624,6 +1663,10 @@
+ 	clk_prepare_enable(ctrl->hclk);
+ 
+ 	ctrl->dev = dev;
++	ctrl->force_no_clk_stop = swrm_name_in_list(dev_name(dev),
++						    force_no_clk_stop_devs);
++	if (ctrl->force_no_clk_stop)
++		dev_info(dev, "clock stop disabled, the bus is reset on every resume\n");
+ 	dev_set_drvdata(&pdev->dev, ctrl);
+ 	mutex_init(&ctrl->port_lock);
+ 	init_completion(&ctrl->broadcast);
+@@ -1748,7 +1791,7 @@
+ 	clk_prepare_enable(ctrl->hclk);
+ 	enable_irq(ctrl->irq);
+ 
+-	if (ctrl->clock_stop_not_supported) {
++	if (ctrl->suspended_no_clk_stop) {
+ 		reinit_completion(&ctrl->enumeration);
+ 		ctrl->reg_write(ctrl, SWRM_COMP_SW_RESET, 0x01);
+ 		usleep_range(100, 105);
+@@ -1806,8 +1849,14 @@
+ 	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dev);
+ 	int ret;
+ 
++	/*
++	 * Latch the choice: resume has to undo exactly what suspend did.
++	 */
++	ctrl->suspended_no_clk_stop = ctrl->clock_stop_not_supported ||
++				      ctrl->force_no_clk_stop;
++
+ 	swrm_wait_for_wr_fifo_done(ctrl);
+-	if (!ctrl->clock_stop_not_supported) {
++	if (!ctrl->suspended_no_clk_stop) {
+ 		/* Mask bus clash interrupt */
+ 		ctrl->intr_mask &= ~SWRM_INTERRUPT_STATUS_MASTER_CLASH_DET;
+ 		if (ctrl->version < SWRM_VERSION_2_0_0)
+@@ -1828,6 +1877,17 @@
+ 			dev_err(dev, "bus clock stop failed %d", ret);
+ 			return ret;
+ 		}
++	} else if (!ctrl->clock_stop_not_supported) {
++		/*
++		 * Forced: the clock is gated without ClockStopNow, so the
++		 * Peripherals lose sync. Mark them UNATTACHED now so that they
++		 * are fully re-initialised when they re-attach after the reset
++		 * on resume, and forget the cached status so that the first
++		 * post-reset status change is never dropped as "not changed".
++		 */
++		sdw_clear_slave_status(&ctrl->bus,
++				       SDW_UNATTACH_REQUEST_MASTER_RESET);
++		ctrl->slave_status = 0;
+ 	}
+ 
+ 	disable_irq(ctrl->irq);

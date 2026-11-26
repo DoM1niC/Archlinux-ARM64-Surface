@@ -1,0 +1,70 @@
+From: slaren <slarengh@gmail.com>
+Subject: [PATCH] soundwire: qcom: acknowledge interrupts before handling them
+
+qcom_swrm_irq_handler() reads INTERRUPT_STATUS, handles every set bit and
+only then writes the value it read at the start to INTERRUPT_CLEAR. An
+event that re-asserts an already-set bit while it is being handled is
+cleared without ever being seen.
+
+This loses Peripheral re-attachment on x1e80100 (Surface Laptop 7, two
+WSA884x on the WSA bus). When a clock-stop exit makes the amplifiers
+lose sync, the handler sees CHANGE_ENUM_SLAVE_STATUS, marks them
+UNATTACHED and starts enumerating (~3 ms). The hardware auto-enumerator
+re-assigns device numbers 1 and 2 in that window. That re-latches
+CHANGE_ENUM_SLAVE_STATUS, which the trailing clear then drops. Afterwards
+SWRM_MCP_SLV_STATUS reads 0x14 with complete IDs while both Peripherals
+stay UNATTACHED in software, and nothing re-syncs until reboot.
+
+Clear NEW_SLAVE_ATTACHED/CHANGE_ENUM_SLAVE_STATUS before handling them, so
+a status change that arrives during handling raises a new interrupt.
+All other bits are still cleared after handling, unchanged.
+
+Traced with kprobes on qcom_swrm_irq_handler/qcom_swrm_enumerate/
+sdw_handle_slave_status and soundwire_qcom dynamic debug: three status
+interrupts in 1.4 ms after resume, the third handled for 3.2 ms, no
+further status interrupt, hardware ends attached.
+
+Not yet tested. Draft for a local 7.3.1-1.6 build on top of
+0004-soundwire-qcom-disable-irq-before-clk-gate.patch.
+---
+--- a/drivers/soundwire/qcom.c
++++ b/drivers/soundwire/qcom.c
+@@ -51,6 +51,8 @@
+ #define SWRM_INTERRUPT_STATUS_SLAVE_PEND_IRQ			BIT(0)
+ #define SWRM_INTERRUPT_STATUS_NEW_SLAVE_ATTACHED		BIT(1)
+ #define SWRM_INTERRUPT_STATUS_CHANGE_ENUM_SLAVE_STATUS		BIT(2)
++#define SWRM_INTERRUPT_ATTACH_EVENTS		(SWRM_INTERRUPT_STATUS_NEW_SLAVE_ATTACHED | \
++					 SWRM_INTERRUPT_STATUS_CHANGE_ENUM_SLAVE_STATUS)
+ #define SWRM_INTERRUPT_STATUS_MASTER_CLASH_DET			BIT(3)
+ #define SWRM_INTERRUPT_STATUS_RD_FIFO_OVERFLOW			BIT(4)
+ #define SWRM_INTERRUPT_STATUS_RD_FIFO_UNDERFLOW			BIT(5)
+@@ -726,6 +728,20 @@
+ 	intr_sts_masked = intr_sts & ctrl->intr_mask;
+ 
+ 	do {
++		/*
++		 * Acknowledge the attach-status events before handling them.
++		 * Handling CHANGE_ENUM_SLAVE_STATUS can take milliseconds
++		 * (enumeration, Peripheral status callbacks); if the
++		 * auto-enumerator re-attaches a Peripheral in that window, the
++		 * same bit re-latches, and clearing it afterwards with the stale
++		 * intr_sts drops the event: the Peripheral stays UNATTACHED in
++		 * software while SWRM_MCP_SLV_STATUS reports it attached.
++		 * Other events keep being cleared after handling (the
++		 * CMD_IGNORED path relies on its delay before the clear).
++		 */
++		ctrl->reg_write(ctrl, ctrl->reg_layout[SWRM_REG_INTERRUPT_CLEAR],
++				intr_sts & SWRM_INTERRUPT_ATTACH_EVENTS);
++
+ 		for (i = 0; i < SWRM_INTERRUPT_MAX; i++) {
+ 			value = intr_sts_masked & BIT(i);
+ 			if (!value)
+@@ -846,7 +862,7 @@
+ 			}
+ 		}
+ 		ctrl->reg_write(ctrl, ctrl->reg_layout[SWRM_REG_INTERRUPT_CLEAR],
+-				intr_sts);
++				intr_sts & ~SWRM_INTERRUPT_ATTACH_EVENTS);
+ 		ctrl->reg_read(ctrl, ctrl->reg_layout[SWRM_REG_INTERRUPT_STATUS],
+ 			       &intr_sts);
+ 		intr_sts_masked = intr_sts & ctrl->intr_mask;
