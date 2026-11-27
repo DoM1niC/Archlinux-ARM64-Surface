@@ -1,4 +1,4 @@
-# Surface Laptop 7 15-inch: the SAM HID keyboard (Microsoft Surface 045E:006C)
+# Surface Laptop 7 (13.8 and 15 inch): the SAM HID keyboard (Microsoft Surface 045E:006C)
 # reports SystemFunctionShift while Fn lock is on; the kernel maps that to
 # BTN_0 and holds it. libinput forwards it as a pointer button and KWin keeps
 # the pointer focus frozen, so clicks land in the last focused window.

@@ -202,6 +202,16 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Auf dem 15" mit Monitor über USB-C getestet (als Overlay gleichen
   Inhalts); auf dem 13,8" sind Karte, Jacks und PipeWire-Geräte geprüft,
   die Wiedergabe an einem Monitor noch nicht.
+- **Fn-Sperre:** Solange die Fn-Sperre an ist, meldet die Tastatur
+  (045E:006C) einen gehaltenen Knopf `BTN_0`; libinput reicht ihn als
+  Zeigerknopf weiter, KWin friert darauf den Zeigerfokus ein, und Klicks
+  landen im zuletzt aktiven Fenster. Der Quirk von libinput für
+  Surface-Tastaturen greift nicht, weil der Gerätename kein „Keyboard“
+  enthält; `surface-install` legt deshalb einen eigenen
+  [Quirk](airootfs/usr/share/surface/target/etc/libinput/local-overrides.quirks)
+  unter `/etc/libinput/local-overrides.quirks` ab. Auf dem 15" getestet;
+  auf dem 13,8" ist geprüft, dass libinput ihn anwendet. Bestehende
+  Installationen: Datei dorthin kopieren und neu anmelden.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

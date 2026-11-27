@@ -199,6 +199,15 @@ provide yet; the ISO and `surface-install` set them up automatically:
   the 15" with a monitor over USB-C (as an overlay with the same content);
   on the 13.8" the card, jacks and PipeWire devices are verified, playback
   to a monitor not yet.
+- **Fn lock:** while Fn lock is on, the keyboard (045E:006C) reports a
+  held button `BTN_0`; libinput forwards it as a pointer button, KWin then
+  freezes the pointer focus, and clicks land in the last active window.
+  libinput's quirk for Surface keyboards does not apply because the device
+  name lacks "Keyboard", so `surface-install` puts its own
+  [quirk](airootfs/usr/share/surface/target/etc/libinput/local-overrides.quirks)
+  at `/etc/libinput/local-overrides.quirks`. Tested on the 15"; on the
+  13.8" it is verified that libinput applies it. Existing installations:
+  copy the file there and log in again.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can

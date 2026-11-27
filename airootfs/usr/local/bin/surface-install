@@ -310,11 +310,11 @@ arch-chroot "$target" systemctl enable bluetooth.service surface-bt-addr.service
 install -Dm644 "$SHARE/overlays.conf" "$target/usr/share/surface/overlays.conf"
 cp -r "$SHARE/patches" "$SHARE/kmods" "$SHARE/overlays" "$target/usr/share/surface/"
 
-if [[ "$device" == sl7-15 ]]; then
+if [[ "$device" == sl7-13 || "$device" == sl7-15 ]]; then
     # libinput quirk: the SAM HID keyboard reports BTN_0 while Fn lock is on;
     # libinput forwards it as a pointer button and KWin freezes the pointer
     # focus. The generic Surface keyboard quirk does not match the SAM HID
-    # name.
+    # name. Both sizes have the same keyboard (045E:006C).
     install -Dm644 "$SHARE/target/etc/libinput/local-overrides.quirks" \
         "$target/etc/libinput/local-overrides.quirks"
 fi
