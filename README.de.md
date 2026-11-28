@@ -202,6 +202,20 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   Auf dem 15" mit Monitor über USB-C getestet (als Overlay gleichen
   Inhalts); auf dem 13,8" sind Karte, Jacks und PipeWire-Geräte geprüft,
   die Wiedergabe an einem Monitor noch nicht.
+- **Externer Monitor nach dem Ruhezustand:** Ein Monitor an USB-C
+  (DisplayPort) blieb nach jedem Ruhezustand dunkel, bis das Kabel neu
+  eingesteckt wurde: AUX-Zugriffe auf ihn liefen in Zeitüberschreitungen
+  (`dpu_dp_aux: Too many retries, giving up. First error: -110`), und der
+  Desktop hing dabei jedes Mal einige Sekunden. Der DP-Treiber
+  (`drm/msm/dp`) versetzt den Controller über den Ruhezustand in Runtime
+  Suspend, was ihn zurücksetzt, hielt das PHY eines externen DP aber
+  weiter für eingerichtet – es wurde nie neu eingerichtet. Ein
+  [Patch](kernel/0005-drm-msm-dp-exit-the-phy-over-system-suspend.patch)
+  im eigenen Kernel (ab 7.3.1-1.6) fährt das PHY vor dem Ruhezustand
+  herunter; die nächste Erkennung richtet es wieder ein. Das betrifft
+  jedes Gerät mit externem DisplayPort an diesem Treiber. Auf dem 15"
+  getestet (beide Steckrichtungen; Monitor im Ruhezustand abgezogen,
+  angesteckt und ausgeschaltet); für Mainline in Vorbereitung.
 - **Fn-Sperre:** Solange die Fn-Sperre an ist, meldet die Tastatur
   (045E:006C) einen gehaltenen Knopf `BTN_0`; libinput reicht ihn als
   Zeigerknopf weiter, KWin friert darauf den Zeigerfokus ein, und Klicks
