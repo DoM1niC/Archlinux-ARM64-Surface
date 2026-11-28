@@ -221,17 +221,17 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   nächsten Neustart stumm, obwohl sysfs beide Verstärker weiter als
   angeschlossen meldet. `surface-kmods` baut deshalb ein gepatchtes Modul
   `soundwire-qcom` (Satz `soundwire`, nach `updates/` installiert, nach jedem
-  Kernel-Update vom pacman-Hook neu gebaut). Die Modulliste
-  `force_no_clk_stop_devs`, Vorgabe `6b10000.soundwire` (der Bus der
-  Verstärker), lässt diesen Controller den Clock-Stop auslassen und sich bei
-  jedem Aufwachen zurücksetzen, wodurch die Enumeration neu angestoßen wird;
-  die Busse für Headset und Mikrofone behalten den Clock-Stop. Zwei weitere
-  [Patches](airootfs/usr/share/surface/patches/soundwire-qcom) betreffen die
-  Interrupt-Behandlung. Preis: etwa 250 ms länger bis zum ersten Ton nach
-  einer Ruhepause. Derselbe Schalter für alle Controller lief auf dem 15"
-  200 erzwungene Idle/Wake-Zyklen ohne verlorenen Verstärker; die Vorgabe pro
-  Bus ist neu. Patches, die nicht mehr passen oder die ein Kernel schon
-  enthält, werden übersprungen, dann bleibt das Modul des Kernels.
+  Kernel-Update vom pacman-Hook neu gebaut) mit drei
+  [Patches](airootfs/usr/share/surface/patches/soundwire-qcom): den Interrupt
+  vor dem Abschalten des Takts sperren (upstream im fixes-Zweig von
+  soundwire), Anmelde-Ereignisse vor ihrer Behandlung quittieren und vor dem
+  Abschalten des Takts warten, bis der Frame-Generator steht. Letzteres ist
+  die Ursache: Der Takt wurde abgeschaltet, während der Bus noch lief. Der
+  Clock-Stop bleibt auf allen Bussen erhalten (erster Ton nach einer
+  Ruhepause etwa 50 ms). Auf dem 15": 700 Idle/Wake-Zyklen und mehrere
+  Suspend/Resume-Zyklen ohne verlorenen Verstärker und ohne Busfehler.
+  Patches, die nicht mehr passen oder die ein Kernel schon enthält, werden
+  übersprungen, dann bleibt das Modul des Kernels.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

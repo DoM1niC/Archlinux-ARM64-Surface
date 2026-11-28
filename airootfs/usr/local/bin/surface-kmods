@@ -15,10 +15,10 @@
 #           der Desktop sie anzeigen und einstellen kann.
 # soundwire soundwire-qcom mit Patches: Die beiden WSA884x-Lautsprecher-
 #           verstärker des Laptop 7 verlieren beim Verlassen des Clock-Stops
-#           manchmal den Bus und bleiben bis zum Neustart stumm. Der Bus der
-#           Verstärker (6b10000.soundwire) kommt deshalb ohne Clock-Stop aus
-#           und wird bei jedem Aufwachen zurückgesetzt (Modulparameter
-#           force_no_clk_stop_devs, Patches unter patches/soundwire-qcom).
+#           manchmal den Bus und bleiben bis zum Neustart stumm. Die Patches
+#           (patches/soundwire-qcom) lassen den Frame-Generator anhalten,
+#           bevor der Takt abgeschaltet wird, und gehen keine Interrupts mehr
+#           verloren; der Clock-Stop bleibt auf allen Bussen erhalten.
 #
 # Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) nennt die
 # Sätze, die er schon enthält, in der Datei surface-drivers im Modulordner;
@@ -51,8 +51,8 @@ usage() {
         cat <<'USAGE'
 Builds the extra kernel modules the Surface Laptop 7 needs (Wi-Fi: patched
 ath12k; touchpad/touchscreen: QSPI, GPI DMA and spi-hid drivers; keyboard
-backlight LED; speakers: soundwire-qcom without clock stop on the amplifier
-bus) and installs them to /usr/lib/modules/<kernel>/updates/.
+backlight LED; speakers: soundwire-qcom that keeps the amplifiers attached
+across clock stop) and installs them to /usr/lib/modules/<kernel>/updates/.
 
   surface-kmods                 for the running kernel
   surface-kmods --all           for all installed kernels lacking the modules
@@ -68,8 +68,9 @@ USAGE
         cat <<'USAGE'
 Baut die Zusatzmodule, die der Surface Laptop 7 braucht (WLAN: gepatchtes
 ath12k; Touchpad/Touchscreen: QSPI-, GPI-DMA- und spi-hid-Treiber;
-Tastaturbeleuchtung als LED; Lautsprecher: soundwire-qcom ohne Clock-Stop am
-Bus der Verstärker) und installiert sie nach /usr/lib/modules/<Kernel>/updates/.
+Tastaturbeleuchtung als LED; Lautsprecher: soundwire-qcom, mit dem die
+Verstärker den Clock-Stop überstehen) und installiert sie nach
+/usr/lib/modules/<Kernel>/updates/.
 
   surface-kmods                 für den laufenden Kernel
   surface-kmods --all           für alle installierten Kernel ohne die Module

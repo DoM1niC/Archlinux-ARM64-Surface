@@ -21,7 +21,8 @@ v2: disable_irq() instead of synchronize_irq(), which left a window for
     CLK_STOP_FINISHED; about one boot in four still hit it.
 
 Upstream: 6c067677192f054bbfa815caf04f536bb8dcdee2 ("soundwire: qcom:
-disable the interrupt before gating the clock", applied to soundwire-next).
+disable the interrupt before gating the clock", applied to the soundwire
+fixes branch).
 Backported to linux-surface 7.3.1: only the hunk offsets differ.
 
  drivers/soundwire/qcom.c | 2 ++
