@@ -208,6 +208,24 @@ provide yet; the ISO and `surface-install` set them up automatically:
   at `/etc/libinput/local-overrides.quirks`. Tested on the 15"; on the
   13.8" it is verified that libinput applies it. Existing installations:
   copy the file there and log in again.
+- **Speaker dropouts (SoundWire):** the two WSA8845 amplifiers on the WSA
+  bus sometimes lose sync when the bus leaves clock stop, i.e. when a stream
+  starts after an idle period. They fall back to device 0, the hardware
+  enumerator sometimes stalls half-way through reading a Device ID, and
+  nothing re-arms it: the PCM runs, nothing is logged, the speakers stay
+  silent until the next reboot, even though sysfs still reports both
+  amplifiers as attached. `surface-kmods` therefore builds a patched
+  `soundwire-qcom` module (set `soundwire`, installed to `updates/`, rebuilt
+  after every kernel update by the pacman hook) with three
+  [patches](airootfs/usr/share/surface/patches/soundwire-qcom): disable the
+  interrupt before the clock is gated (upstream in the soundwire fixes
+  branch), acknowledge attach events before handling them, and wait for the
+  frame generator to stop before the clock is gated. The last one is the
+  root cause: the clock was gated while the bus was still running. Clock
+  stop stays on for all buses (first sound after an idle bus about 50 ms).
+  On the 15": 700 idle/wake cycles and several suspend/resume cycles without
+  a lost amplifier or a bus error. Patches that no longer apply, or that a
+  kernel already contains, are skipped and the stock module stays.
 - **Keyboard backlight:** the backlight key works on its own (the firmware
   steps through its levels). A small HID driver additionally exposes it as
   `/sys/class/leds/surface::kbd_backlight` (levels 0-12), so the desktop can

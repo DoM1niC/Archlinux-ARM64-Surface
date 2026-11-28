@@ -13,10 +13,16 @@
 #           ELLX-Kernel (siehe /usr/share/surface/kmods/sl7-touchpad/README).
 # kbd       Tastaturbeleuchtung als LED-Gerät (surface::kbd_backlight), damit
 #           der Desktop sie anzeigen und einstellen kann.
+# soundwire soundwire-qcom mit Patches: Die beiden WSA884x-Lautsprecher-
+#           verstärker des Laptop 7 verlieren beim Verlassen des Clock-Stops
+#           manchmal den Bus und bleiben bis zum Neustart stumm. Die Patches
+#           (patches/soundwire-qcom) lassen den Frame-Generator anhalten,
+#           bevor der Takt abgeschaltet wird, und gehen keine Interrupts mehr
+#           verloren; der Clock-Stop bleibt auf allen Bussen erhalten.
 #
-# Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) enthält all
-# das schon (Datei surface-drivers im Modulordner); für ihn baut das Skript
-# nichts.
+# Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) nennt die
+# Sätze, die er schon enthält, in der Datei surface-drivers im Modulordner;
+# für diese baut das Skript nichts.
 #
 # Module unter updates/ haben Vorrang vor denen des Kernelpakets. Nach einem
 # Kernel-Update müssen sie neu gebaut werden; das erledigt der pacman-Hook
@@ -30,6 +36,7 @@ SHARE=/usr/share/surface
 PATCH="$SHARE/patches/ath12k-sl7-rfkill.patch"
 TOUCHPAD_SRC="$SHARE/kmods/sl7-touchpad"
 KBD_SRC="$SHARE/kmods/sl7-kbd-backlight"
+SW_PATCHES="$SHARE/patches/soundwire-qcom"
 KERNEL_REPO="https://github.com/linux-surface/kernel.git"
 KERNEL_RAW="https://raw.githubusercontent.com/linux-surface/kernel"
 PKGBUILD_URL="https://raw.githubusercontent.com/linux-surface/aarch64-packages/linux_surface-%s/linux-surface/PKGBUILD"
@@ -37,39 +44,43 @@ PKGBUILD_URL="https://raw.githubusercontent.com/linux-surface/aarch64-packages/l
 WIFI_MODULES=(ath12k.ko)
 TOUCHPAD_MODULES=(gpi.ko spi-geni-qspi.ko spi-hid.ko)
 KBD_MODULES=(hid-surface-kbd-backlight.ko)
+SW_MODULES=(soundwire-qcom.ko)
 
 usage() {
     if [[ "$SURFACE_LANG" == en ]]; then
         cat <<'USAGE'
 Builds the extra kernel modules the Surface Laptop 7 needs (Wi-Fi: patched
 ath12k; touchpad/touchscreen: QSPI, GPI DMA and spi-hid drivers; keyboard
-backlight LED) and installs them to
-/usr/lib/modules/<kernel>/updates/.
+backlight LED; speakers: soundwire-qcom that keeps the amplifiers attached
+across clock stop) and installs them to /usr/lib/modules/<kernel>/updates/.
 
   surface-kmods                 for the running kernel
   surface-kmods --all           for all installed kernels lacking the modules
   surface-kmods --kernel K      for kernel release K (e.g. 7.3.1-1-surface)
-  surface-kmods --only wifi|touchpad|kbd   build just one set
+  surface-kmods --only wifi|touchpad|kbd|soundwire   build just one set
   surface-kmods --force         rebuild even if the modules are already there
   surface-kmods --remove        remove the modules again
 
 Needs: gcc make git patch curl and linux-surface-headers, plus network access.
+A module takes effect at the next boot.
 USAGE
     else
         cat <<'USAGE'
 Baut die Zusatzmodule, die der Surface Laptop 7 braucht (WLAN: gepatchtes
 ath12k; Touchpad/Touchscreen: QSPI-, GPI-DMA- und spi-hid-Treiber;
-Tastaturbeleuchtung als LED) und installiert sie
-nach /usr/lib/modules/<Kernel>/updates/.
+Tastaturbeleuchtung als LED; Lautsprecher: soundwire-qcom, mit dem die
+Verstärker den Clock-Stop überstehen) und installiert sie nach
+/usr/lib/modules/<Kernel>/updates/.
 
   surface-kmods                 für den laufenden Kernel
   surface-kmods --all           für alle installierten Kernel ohne die Module
   surface-kmods --kernel K      für die Kernel-Version K (z. B. 7.3.1-1-surface)
-  surface-kmods --only wifi|touchpad|kbd   nur einen Satz bauen
+  surface-kmods --only wifi|touchpad|kbd|soundwire   nur einen Satz bauen
   surface-kmods --force         auch bauen, wenn die Module schon da sind
   surface-kmods --remove        die Module wieder entfernen
 
 Braucht: gcc make git patch curl und linux-surface-headers sowie Netzzugang.
+Ein Modul wirkt ab dem nächsten Start.
 USAGE
     fi
 }
@@ -95,7 +106,7 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-case "$only" in ""|wifi|touchpad|kbd) ;; *) die "--only: wifi | touchpad | kbd" ;; esac
+case "$only" in ""|wifi|touchpad|kbd|soundwire) ;; *) die "--only: wifi | touchpad | kbd | soundwire" ;; esac
 
 (( EUID == 0 )) || die "$(t 'Bitte als root ausführen.' 'Please run as root.')"
 
@@ -112,6 +123,7 @@ wanted_modules=()
 [[ -z "$only" || "$only" == wifi ]]     && wanted_modules+=("${WIFI_MODULES[@]}")
 [[ -z "$only" || "$only" == touchpad ]] && wanted_modules+=("${TOUCHPAD_MODULES[@]}")
 [[ -z "$only" || "$only" == kbd ]]      && wanted_modules+=("${KBD_MODULES[@]}")
+[[ -z "$only" || "$only" == soundwire ]] && wanted_modules+=("${SW_MODULES[@]}")
 
 if (( remove )); then
     for k in "${kernels[@]}"; do
@@ -133,20 +145,24 @@ have_all() { # kernel modul...
 
 build_for() { # kernel-release
     local k="$1" moddir="/usr/lib/modules/$1" pkgver ref tmp src m
-    local do_wifi=0 do_touchpad=0 do_kbd=0
+    local do_wifi=0 do_touchpad=0 do_kbd=0 do_sw=0
 
-    # Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) enthält
-    # die Treiber bereits; Module unter updates/ würden sie nur verdecken.
-    if [[ -e "$moddir/surface-drivers" ]]; then
-        msg "$k: $(t 'Treiber sind im Kernel enthalten, nichts zu bauen' 'drivers are part of this kernel, nothing to build')"
-        return 0
-    fi
+    # Der Kernel aus dem Repository surface-kernel (kernel/PKGBUILD) nennt die
+    # Sätze, die er schon enthält, in der Datei surface-drivers; Module unter
+    # updates/ würden sie nur verdecken.
+    # Sets listed in the surface-drivers file are part of that kernel already.
+    in_kernel() { grep -qxs "$1" "$moddir/surface-drivers"; }
 
-    [[ -z "$only" || "$only" == wifi ]] && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
-    [[ -z "$only" || "$only" == touchpad ]] && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1
-    [[ -z "$only" || "$only" == kbd ]] && { (( force )) || ! have_all "$k" "${KBD_MODULES[@]}"; } && do_kbd=1
-    if (( ! do_wifi && ! do_touchpad && ! do_kbd )); then
-        msg "$k: $(t 'Zusatzmodule sind schon vorhanden' 'extra modules already present')"
+    [[ -z "$only" || "$only" == wifi ]] && ! in_kernel wifi \
+        && { (( force )) || ! have_all "$k" "${WIFI_MODULES[@]}"; } && do_wifi=1
+    [[ -z "$only" || "$only" == touchpad ]] && ! in_kernel touchpad \
+        && { (( force )) || ! have_all "$k" "${TOUCHPAD_MODULES[@]}"; } && do_touchpad=1
+    [[ -z "$only" || "$only" == kbd ]] && ! in_kernel kbd \
+        && { (( force )) || ! have_all "$k" "${KBD_MODULES[@]}"; } && do_kbd=1
+    [[ -z "$only" || "$only" == soundwire ]] && ! in_kernel soundwire \
+        && { (( force )) || ! have_all "$k" "${SW_MODULES[@]}"; } && do_sw=1
+    if (( ! do_wifi && ! do_touchpad && ! do_kbd && ! do_sw )); then
+        msg "$k: $(t 'Zusatzmodule sind schon vorhanden oder im Kernel enthalten' 'extra modules already present or part of this kernel')"
         return 0
     fi
 
@@ -157,7 +173,7 @@ build_for() { # kernel-release
     local tool
     for tool in gcc make git patch curl; do
         # ohne WLAN-/Touchpad-Module reichen Compiler und make
-        (( do_wifi || do_touchpad )) || [[ "$tool" == gcc || "$tool" == make ]] || continue
+        (( do_wifi || do_touchpad || do_sw )) || [[ "$tool" == gcc || "$tool" == make ]] || continue
         command -v "$tool" >/dev/null || {
             warn "$(t 'Es fehlt' 'Missing'): $tool  (pacman -S --needed base-devel git curl)"
             return 1
@@ -167,11 +183,21 @@ build_for() { # kernel-release
     # Paketversion -> Kernel-Commit (steht im PKGBUILD des passenden Tags);
     # nur für die Module nötig, die Kernel-Quellen brauchen.
     ref=""
-    if (( do_wifi || do_touchpad )); then
+    if (( do_wifi || do_touchpad || do_sw )); then
         pkgver="${k%-surface}"
-        # shellcheck disable=SC2059
-        ref="$(curl -fsSL --retry 3 "$(printf "$PKGBUILD_URL" "$pkgver")" \
-                | sed -n 's/^_ref_ksource="\(.*\)"/\1/p')" || true
+        # Der Kernel aus dem Repository surface-kernel heißt 7.3.1-1.4: Die
+        # Endung .4 ist dessen eigene Revision, das Tag bei linux-surface
+        # lautet 7.3.1-1. Erst die volle Version versuchen, dann ohne Endung.
+        # The project kernel is called 7.3.1-1.4: the .4 is its own revision,
+        # the linux-surface tag is 7.3.1-1. Try the full version, then without.
+        local ver
+        for ver in "$pkgver" "$(sed -nE 's/^(.*-[0-9]+)\.[0-9]+$/\1/p' <<<"$pkgver")"; do
+            [[ -n "$ver" ]] || continue
+            # shellcheck disable=SC2059
+            ref="$(curl -fsSL --retry 3 "$(printf "$PKGBUILD_URL" "$ver")" 2>/dev/null \
+                    | sed -n 's/^_ref_ksource="\(.*\)"/\1/p')" || true
+            [[ -z "$ref" ]] || break
+        done
         [[ -n "$ref" ]] || {
             warn "$k: $(t 'Kernel-Quellstand nicht gefunden (kein Netz?).' 'kernel source revision not found (no network?).')"
             return 1
@@ -236,6 +262,52 @@ build_for() { # kernel-release
         fi
     fi
 
+    if (( do_sw )); then
+        # qcom.c und das private Kernel-Header bus.h aus dem Quellstand dieses
+        # Kernels holen, die Patches nacheinander anwenden und das Modul bauen.
+        # Ein Patch, der nicht passt, bricht den Satz ab: Dann bleibt das
+        # Modul des Kernelpakets (Lautsprecher wie ohne diesen Satz) – besser
+        # als ein halb gepatchtes Modul. Ein Patch, der schon im Kernel steckt,
+        # wird übersprungen.
+        msg "$k: $(t 'baue soundwire-qcom' 'building soundwire-qcom') (${ref:0:12})"
+        src="$tmp/sw/drivers/soundwire"
+        mkdir -p "$src"
+        local sw_ok=1 sw_applied=0 p
+        for m in qcom.c bus.h; do
+            curl -fsSL --retry 3 -o "$src/$m" "$KERNEL_RAW/$ref/drivers/soundwire/$m" || sw_ok=0
+        done
+        if (( sw_ok )); then
+            printf 'soundwire-qcom-y := qcom.o\nobj-m += soundwire-qcom.o\n' >"$src/Makefile"
+            for p in "$SW_PATCHES"/*.patch; do
+                if patch -s -N --dry-run -d "$tmp/sw" -p1 <"$p" >/dev/null 2>&1; then
+                    patch -s -d "$tmp/sw" -p1 <"$p" && sw_applied=$((sw_applied + 1))
+                elif patch -s -R --dry-run -d "$tmp/sw" -p1 <"$p" >/dev/null 2>&1; then
+                    msg "$k: $(t 'schon im Kernel, übersprungen' 'already in this kernel, skipped'): $(basename "$p")"
+                else
+                    warn "$k: $(t 'Patch passt nicht zu diesem Kernel' 'patch does not apply to this kernel'): $(basename "$p")"
+                    sw_ok=0
+                    break
+                fi
+            done
+        else
+            warn "$k: $(t 'Kernel-Quellen für soundwire-qcom nicht abrufbar.' 'could not fetch the kernel sources for soundwire-qcom.')"
+        fi
+        if (( sw_ok && sw_applied == 0 )); then
+            msg "$k: $(t 'alle soundwire-Patches stecken schon im Kernel, nichts zu bauen' 'all soundwire patches are already in this kernel, nothing to build')"
+        elif (( sw_ok )); then
+            if make -s -j"$(nproc)" -C "$moddir/build" M="$src" modules >"$tmp/sw.log" 2>&1; then
+                install -Dm644 "$src/soundwire-qcom.ko" "$moddir/updates/soundwire-qcom.ko"
+                msg "$k: $(t 'soundwire-qcom installiert (wirkt ab dem nächsten Start)' 'soundwire-qcom installed (takes effect at the next boot)')"
+            else
+                grep -E 'error|Error' "$tmp/sw.log" | tail -n 15 >&2 || true
+                warn "$k: $(t 'soundwire-qcom: Bau fehlgeschlagen.' 'soundwire-qcom: build failed.')"
+                rc=1
+            fi
+        else
+            rc=1
+        fi
+    fi
+
     if (( do_kbd )); then
         msg "$k: $(t 'baue Modul für die Tastaturbeleuchtung' 'building the keyboard backlight module')"
         cp -r "$KBD_SRC" "$tmp/kbd"
@@ -276,7 +348,7 @@ if (( built )) && [[ -z "${SURFACE_KMODS_NO_INITRAMFS:-}" ]] \
 fi
 
 if (( rc )); then
-    warn "$(t 'Ohne diese Module bleiben unter dem betroffenen Kernel das WLAN gesperrt bzw. das Touchpad ohne Funktion. Vor dem Neustart beheben oder eine andere Netzverbindung bereithalten.' \
-              'Without these modules Wi-Fi stays blocked and/or the touchpad stays dead under the affected kernel. Fix this before rebooting or keep another network connection at hand.')"
+    warn "$(t 'Ohne diese Module bleiben unter dem betroffenen Kernel das WLAN gesperrt bzw. das Touchpad ohne Funktion, und die Lautsprecher können bis zum nächsten Neustart aussetzen. Vor dem Neustart beheben oder eine andere Netzverbindung bereithalten.' \
+              'Without these modules Wi-Fi stays blocked and/or the touchpad stays dead under the affected kernel, and the speakers may drop out until the next reboot. Fix this before rebooting or keep another network connection at hand.')"
 fi
 exit "$rc"

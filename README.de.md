@@ -212,6 +212,26 @@ nicht mitbringt; ISO und `surface-install` richten sie automatisch ein:
   unter `/etc/libinput/local-overrides.quirks` ab. Auf dem 15" getestet;
   auf dem 13,8" ist geprüft, dass libinput ihn anwendet. Bestehende
   Installationen: Datei dorthin kopieren und neu anmelden.
+- **Lautsprecher-Aussetzer (SoundWire):** Die beiden WSA8845-Verstärker am
+  WSA-Bus verlieren manchmal die Synchronisation, wenn der Bus den
+  Clock-Stop verlässt, also wenn nach einer Ruhepause ein Stream startet.
+  Sie fallen auf Gerät 0 zurück, der Hardware-Enumerator bleibt manchmal
+  mittendrin beim Lesen einer Device-ID hängen, und nichts stößt ihn erneut
+  an: das PCM läuft, es wird nichts geloggt, die Lautsprecher bleiben bis zum
+  nächsten Neustart stumm, obwohl sysfs beide Verstärker weiter als
+  angeschlossen meldet. `surface-kmods` baut deshalb ein gepatchtes Modul
+  `soundwire-qcom` (Satz `soundwire`, nach `updates/` installiert, nach jedem
+  Kernel-Update vom pacman-Hook neu gebaut) mit drei
+  [Patches](airootfs/usr/share/surface/patches/soundwire-qcom): den Interrupt
+  vor dem Abschalten des Takts sperren (upstream im fixes-Zweig von
+  soundwire), Anmelde-Ereignisse vor ihrer Behandlung quittieren und vor dem
+  Abschalten des Takts warten, bis der Frame-Generator steht. Letzteres ist
+  die Ursache: Der Takt wurde abgeschaltet, während der Bus noch lief. Der
+  Clock-Stop bleibt auf allen Bussen erhalten (erster Ton nach einer
+  Ruhepause etwa 50 ms). Auf dem 15": 700 Idle/Wake-Zyklen und mehrere
+  Suspend/Resume-Zyklen ohne verlorenen Verstärker und ohne Busfehler.
+  Patches, die nicht mehr passen oder die ein Kernel schon enthält, werden
+  übersprungen, dann bleibt das Modul des Kernels.
 - **Tastaturbeleuchtung:** Die Beleuchtungstaste funktioniert von sich aus
   (die Firmware schaltet ihre Stufen selbst weiter). Ein kleiner HID-Treiber
   stellt sie zusätzlich als `/sys/class/leds/surface::kbd_backlight` bereit

@@ -303,9 +303,9 @@ build_kmods() {
     fi
 
     local srcsum
-    srcsum="$( (cat "$PROJECT/airootfs/usr/local/bin/surface-kmods" \
-                    "$PROJECT/airootfs/usr/share/surface/patches/ath12k-sl7-rfkill.patch"
-                find "$PROJECT/airootfs/usr/share/surface/kmods" -type f | sort | xargs cat) \
+    srcsum="$( (cat "$PROJECT/airootfs/usr/local/bin/surface-kmods"
+                find "$PROJECT/airootfs/usr/share/surface/patches" \
+                     "$PROJECT/airootfs/usr/share/surface/kmods" -type f | sort | xargs cat) \
                | sha256sum | cut -c1-12)"
     KMOD_CACHE="$BUILD/modcache/${KERNEL_RELEASE}-${srcsum}"
 

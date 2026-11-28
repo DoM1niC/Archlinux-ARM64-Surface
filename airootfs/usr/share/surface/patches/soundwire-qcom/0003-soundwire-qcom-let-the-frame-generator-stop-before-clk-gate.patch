@@ -1,0 +1,88 @@
+From: slaren <slarengh@gmail.com>
+Subject: [PATCH] soundwire: qcom: let the frame generator stop before gating the clock
+
+swrm_runtime_suspend() sends ClockStopNow and gates hclk straight away,
+but the frame generator does not stop at once: on the Surface Laptop 7
+(x1e80100, two WSA884x amplifiers on the WSA bus) its status bit was
+still set in 17 to 45 % of the suspends and took 82 to 315 us to clear.
+Gating the clock while the bus still runs appears to leave the
+amplifiers unable to resync at the next clock-stop exit: one or both
+fall off the bus and the speakers stay silent until the controller is
+reset.
+
+Wait for the frame generator to stop, polling the frame generator status
+that swrm_wait_for_frame_gen_enabled() waits on at resume, for up to
+30 ms, before the clock is gated, and warn if it does not stop.
+
+On the laptop (7.3.1 + 0001 + 0002 + this patch): 400 and 300 idle/wake
+cycles without a lost amplifier and without bus error messages, first
+sound after an idle bus 50 ms (at most 90 ms); system suspend/resume
+fine. Without it, 1 to 6 of 100 wakes lost an amplifier.
+
+Backport to linux-surface 7.3.1 of the mainline draft, see
+surface-laptop-7/mainline/0002-*.patch (based on soundwire fixes).
+Replaces the earlier force_no_clk_stop_devs workaround, which gave up
+clock stop on the WSA bus (about 250 ms more until the first sound).
+
+Fixes: 74e79da9fd46 ("soundwire: qcom: add runtime pm support")
+---
+--- a/drivers/soundwire/qcom.c
++++ b/drivers/soundwire/qcom.c
+@@ -4,6 +4,7 @@
+ #include <linux/clk.h>
+ #include <linux/completion.h>
+ #include <linux/interrupt.h>
++#include <linux/iopoll.h>
+ #include <linux/io.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+@@ -134,6 +135,8 @@
+ 
+ #define MAX_FREQ_NUM						1
+ #define TIMEOUT_MS						100
++/* Time the frame generator gets to stop after ClockStopNow, in us */
++#define SWRM_FRM_GEN_STOP_TIMEOUT_US			30000
+ #define QCOM_SWRM_MAX_RD_LEN					0x1
+ #define DEFAULT_CLK_FREQ					9600000
+ #define SWR_INVALID_PARAM					0xFF
+@@ -1735,6 +1738,25 @@
+ 	clk_disable_unprepare(ctrl->hclk);
+ }
+ 
++static u32 swrm_frame_gen_status(struct qcom_swrm_ctrl *ctrl)
++{
++	u32 comp_sts = 0;
++
++	ctrl->reg_read(ctrl, ctrl->reg_layout[SWRM_REG_FRAME_GEN_ENABLED],
++		       &comp_sts);
++
++	return comp_sts;
++}
++
++static bool swrm_wait_for_frame_gen_disabled(struct qcom_swrm_ctrl *ctrl)
++{
++	u32 comp_sts;
++
++	return !read_poll_timeout(swrm_frame_gen_status, comp_sts,
++				  !(comp_sts & SWRM_FRM_GEN_ENABLED), 100,
++				  SWRM_FRM_GEN_STOP_TIMEOUT_US, false, ctrl);
++}
++
+ static int __maybe_unused swrm_runtime_resume(struct device *dev)
+ {
+ 	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dev);
+@@ -1828,6 +1850,14 @@
+ 			dev_err(dev, "bus clock stop failed %d", ret);
+ 			return ret;
+ 		}
++
++		/*
++		 * ClockStopNow has been sent, but the frame generator needs a
++		 * moment to stop. Gating hclk before it has stopped can leave
++		 * the Peripherals out of sync at the next clock stop exit.
++		 */
++		if (!swrm_wait_for_frame_gen_disabled(ctrl))
++			dev_warn(dev, "frame generator did not stop before the clock was gated\n");
+ 	}
+ 
+ 	disable_irq(ctrl->irq);
