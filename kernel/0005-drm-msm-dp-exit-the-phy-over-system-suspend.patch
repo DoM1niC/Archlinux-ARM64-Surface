@@ -1,0 +1,85 @@
+From: slaren <slarengh@gmail.com>
+Subject: [PATCH] drm/msm/dp: exit the PHY of an external DP over system
+ suspend
+
+With a DisplayPort sink connected, the external display stays dark after
+every system suspend, and AUX transfers time out until the sink is
+unplugged:
+
+  [drm:drm_dp_dpcd_access] dpu_dp_aux: Too many retries, giving up. First error: -110
+  [drm:msm_dp_bridge_detect [msm]] failed to read caps
+
+While a sink is plugged in, the PHY stays initialised and the runtime PM
+reference taken by msm_dp_hpd_plug_handle() keeps the controller active.
+System suspend runtime suspends the controller anyway, through
+pm_runtime_force_suspend(), which gates its clocks, and resuming it
+resets the controller (msm_dp_display_host_init()). The PHY then has to
+be initialised again, which the runtime PM callbacks only do for eDP.
+For DP phy_initialized is still set, so the next detect or plug does not
+initialise the PHY either, and every AUX transfer times out. Each of
+them holds plugged_lock for seconds, which also stalls the compositor's
+connector probing. The sink only comes back when an unplug
+happens to exit the PHY.
+
+The system suspend callback used to exit the PHY for every connector
+type, before it deinitialised the controller; this got lost when the
+driver switched to pm_runtime_force_suspend() and
+pm_runtime_force_resume() for system sleep.
+
+Exit the PHY of an external DP again before the controller is runtime
+suspended for system sleep, provided no link is up: the next detect,
+plug or modeset initialises it again, as after an unplug.
+
+This does not depend on the system actually sleeping: with
+/sys/power/pm_test set to "platform", where all device callbacks run but
+the system does not enter suspend-to-idle, the sink is lost the same way
+without this change and survives with it.
+
+Tested on a Microsoft Surface Laptop 7 (x1e80100) with a USB-C
+DisplayPort monitor behind the PS8830 retimer, in both cable
+orientations, with the monitor unplugged, plugged in and switched off
+while the system was suspended.
+
+Fixes: 5814b8bf086a ("drm/msm/dp: incorporate pm_runtime framework into DP driver")
+Cc: stable@vger.kernel.org
+---
+--- a/drivers/gpu/drm/msm/dp/dp_display.c
++++ b/drivers/gpu/drm/msm/dp/dp_display.c
+@@ -1310,10 +1310,35 @@ static int msm_dp_pm_runtime_resume(struct device *dev)
+ 	return 0;
+ }
+ 
++static int msm_dp_pm_suspend(struct device *dev)
++{
++	struct msm_dp_display_private *dp = dev_get_dp_display_private(dev);
++
++	/*
++	 * While a DP sink is plugged in, the PHY stays initialised and the
++	 * runtime PM reference taken by the plug handler keeps the controller
++	 * active. pm_runtime_force_suspend() runtime suspends it anyway, which
++	 * gates its clocks, and resuming it resets the controller, after which
++	 * the PHY has to be initialised again. The runtime PM callbacks only do
++	 * that for eDP, so exit the PHY here for DP as well: the next detect,
++	 * plug or modeset initialises it again.
++	 */
++	if (!dp->msm_dp_display.is_edp) {
++		guard(mutex)(&dp->plugged_lock);
++
++		if (dp->phy_initialized && !dp->msm_dp_display.power_on &&
++		    !pm_runtime_resume_and_get(dev)) {
++			msm_dp_display_host_phy_exit(dp);
++			pm_runtime_put_noidle(dev);
++		}
++	}
++
++	return pm_runtime_force_suspend(dev);
++}
++
+ static const struct dev_pm_ops msm_dp_pm_ops = {
+ 	SET_RUNTIME_PM_OPS(msm_dp_pm_runtime_suspend, msm_dp_pm_runtime_resume, NULL)
+-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+-				pm_runtime_force_resume)
++	SET_SYSTEM_SLEEP_PM_OPS(msm_dp_pm_suspend, pm_runtime_force_resume)
+ };
+ 
+ static struct platform_driver msm_dp_display_driver = {

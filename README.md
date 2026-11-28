@@ -199,6 +199,19 @@ provide yet; the ISO and `surface-install` set them up automatically:
   the 15" with a monitor over USB-C (as an overlay with the same content);
   on the 13.8" the card, jacks and PipeWire devices are verified, playback
   to a monitor not yet.
+- **External monitor after suspend:** a monitor on USB-C DisplayPort
+  stayed dark after every suspend until the cable was replugged: AUX
+  transfers to it timed out (`dpu_dp_aux: Too many retries, giving up.
+  First error: -110`), and the desktop froze for several seconds each time
+  while the driver waited. The DP driver (`drm/msm/dp`) runtime-suspends
+  the controller over system sleep, which resets it, but kept the PHY of
+  an external DP marked as initialised, so the PHY was never set up again.
+  A [patch](kernel/0005-drm-msm-dp-exit-the-phy-over-system-suspend.patch)
+  in the project's kernel (from 7.3.1-1.6) exits the PHY before the
+  suspend; the next detect sets it up again. It applies to every device
+  with external DisplayPort on this driver. Tested on the 15" (both cable
+  orientations; monitor unplugged, plugged in and switched off while
+  suspended); being prepared for mainline.
 - **Fn lock:** while Fn lock is on, the keyboard (045E:006C) reports a
   held button `BTN_0`; libinput forwards it as a pointer button, KWin then
   freezes the pointer focus, and clicks land in the last active window.
